@@ -1,0 +1,14 @@
+# Python/Django
+__pycache__/
+*.py[cod]
+venv/
+static/
+media/
+dump.rdb
+requirements.flag
+
+# Misc.
+.DS_Store
+*.swp
+devsetup
+google-creds.json
