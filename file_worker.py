@@ -1,6 +1,11 @@
-import argparse
+from drive_service import DriveService
 
-# Command-line argument parsing
-arg_parser = argparse.ArgumentParser(description="Process a Google Drive folder.")
-#arg_parser.add_argument("folder_id", help="The ID of the folder to process.")
-args = arg_parser.parse_args()
+
+def run_file_worker(file_id):
+  print(f"START process inbox file {file_id}")
+
+  with DriveService() as drive_utils:
+    inbox_id = drive_utils.get_parent_folder_ids(file_id)[0]
+    print(f"FOUND inbox id {inbox_id}")
+
+  print(f"FINISH process inbox file {file_id}")
