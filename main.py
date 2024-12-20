@@ -1,47 +1,48 @@
-import argparse
 import os
 import json
-from googleapiclient.discovery import build
-from google.oauth2.service_account import Credentials
+from drive_service import DriveService
 
-CREDENTIALS_ENV_NAME = "GOOGLE_SERVICE_ACCT_CREDENTIALS"
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+#
+# This is the program that runs every few seconds to discover new files in the inbox.
+#
+# It is bound to a specific service account via a set of credentials, which is specified via
+# the environment variable GOOGLE_SERVICE_ACCT_CREDENTIALS, the value of which is a JSON
+# string.
+#
+# Find all of the Nestli folders accessible by the service account.  For each, list the contents
+# of the INBOX subfolder.  Fire up a worker process to handle each new file.
+#
 
-# Get credentials from the environment
-if CREDENTIALS_ENV_NAME not in os.environ:
-  raise EnvironmentError("The GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.")
-credentials_json = os.environ[CREDENTIALS_ENV_NAME]
-credentials_obj = json.loads(credentials_json)
+SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME = "GOOGLE_SERVICE_ACCT_CREDENTIALS"
 
-# Parse credentials
-credentials = Credentials.from_service_account_info(credentials_obj, scopes=SCOPES)
-
-# Initialize the Google Drive API client
-drive_service = build("drive", "v3", credentials=credentials)
-
-
-# Function to list files in a folder
-def list_files_in_folder(folder_id):
-  """List files in the specified folder."""
-  query = f"'{folder_id}' in parents and trashed = false"
-  results = drive_service.files().list(q=query, fields="files(id, name, createdTime)").execute()
-
-  files = results.get("files", [])
-  return files
-  print(f"Found file: {file['name']} (ID: {file['id']})")
+# TODO: Add logging and error monitoring.
 
 
-# Command-line argument parsing
-arg_parser = argparse.ArgumentParser(description="Process a Google Drive folder.")
-arg_parser.add_argument("folder_id", help="The ID of the folder to process.")
-args = arg_parser.parse_args()
+def get_credentials_from_environment():
+  if SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME not in os.environ:
+    raise EnvironmentError(
+        f"The {SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME} environment variable is not set.")
+  credentials_json = os.environ[SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME]
+  return json.loads(credentials_json)
 
-# Use the folder ID from the command line
-inbox_folder_id = args.folder_id
 
-# Example usage
-files = list_files_in_folder(inbox_folder_id)
+credentials = get_credentials_from_environment()
+with DriveService(credentials) as drive_utils:
 
-print(f"Files in folder {inbox_folder_id}:")
-for file in files:
-  print(f" - \"{file['name']}\" (ID: {file['id']})")
+  # Find all folders named INBOX accessible to this service account.
+  for inbox in drive_utils.find_folders_by_name("INBOX"):
+
+    inbox_id = inbox["id"]
+
+    parent_folder_ids = drive_utils.get_parent_folder_ids(inbox_id)
+    if parent_folder_ids:
+      parent_id = parent_folder_ids.pop(0)
+      if parent_folder_ids:
+        print(f"{inbox_id}: More than one parent is not allowed!")  # FIXME
+        continue
+
+    files = drive_utils.list_files_in_folder(inbox_id)
+    for file in files:
+      file_id = file["id"]
+      file_name = file["name"]
+      print(f"{file_id} {file_name}")
