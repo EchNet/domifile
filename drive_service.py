@@ -1,20 +1,10 @@
-import json
-import os
+import io
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from environment import get_service_account_info_from_environment
 
 # TODO: Add logging and error monitoring.
-
-
-def get_service_account_info_from_environment():
-  SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME = "GOOGLE_SERVICE_ACCT_CREDENTIALS"
-
-  if SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME not in os.environ:
-    raise EnvironmentError(
-        f"The {SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME} environment variable is not set.")
-
-  credentials_json = os.environ[SERVICE_ACCOUNT_CREDENTIALS_ENV_NAME]
-  return json.loads(credentials_json)
 
 
 class DriveService:
@@ -28,13 +18,12 @@ class DriveService:
   SCOPES = ["https://www.googleapis.com/auth/drive"]
 
   def __init__(self):
-    self.service_account_info = get_service_account_info_from_environment()
+    service_account_info = get_service_account_info_from_environment()
+    credentials = Credentials.from_service_account_info(service_account_info, scopes=self.SCOPES)
+    self.drive_service = build("drive", "v3", credentials=credentials)
 
   def __enter__(self):
-    credentials = Credentials.from_service_account_info(self.service_account_info,
-                                                        scopes=self.SCOPES)
-    drive_service = build("drive", "v3", credentials=credentials)
-    return DriveServiceUtils(drive_service)
+    return DriveServiceUtils(self.drive_service)
 
   # No-op
   def __exit__(self, exc_type, exc_value, traceback):
@@ -136,3 +125,23 @@ class DriveServiceUtils:
 
     print(f"Folder '{folder_name}' created with ID: {folder['id']}")
     return folder["id"]
+
+  def download_file(self, file_id, output_path):
+    """
+      Download a file from Google Drive.
+      
+      Args:
+          file_id (str): The ID of the Google Drive file.
+          output_path (str): Local path to save the downloaded file.
+      
+      Returns:
+          str: Path to the downloaded file.
+    """
+    request = self.drive_service.files().get_media(fileId=file_id)
+    with io.FileIO(output_path, "wb") as file:
+      downloader = MediaIoBaseDownload(file, request)
+      done = False
+      while not done:
+        status, done = downloader.next_chunk()
+        print(f"Downloading {file_id} progress: {int(status.progress() * 100)}%")
+    return output_path

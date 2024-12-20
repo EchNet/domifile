@@ -12,7 +12,7 @@
 
 from multiprocessing import Pool
 from drive_service import DriveService
-from file_worker import run_file_worker
+from worker import run_file_worker
 
 if __name__ == "__main__":
 
