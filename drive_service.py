@@ -145,22 +145,3 @@ class DriveServiceUtils:
         status, done = downloader.next_chunk()
         print(f"Downloading {file_id} progress: {int(status.progress() * 100)}%")
     return output_path
-
-  def get_file_mime_type(self, file_id):
-    """
-    Retrieve the MIME type of a file in Google Drive.
-
-    Args:
-        file_id (str): The ID of the file to retrieve.
-
-    Returns:
-        str: The MIME type of the file.
-    """
-    try:
-      file_metadata = self.drive_service.files().get(fileId=file_id,
-                                                     fields="mimeType, name").execute()
-      mime_type = file_metadata["mimeType"]
-      return mime_type
-    except Exception as e:
-      print(f"An error occurred: {e}")
-      return None

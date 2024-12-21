@@ -9,8 +9,8 @@ class CharacterRecognitionService:
   def __init__(self):
     # Google Cloud Vision client
     service_account_info = get_service_account_info_from_environment()
-    self.vision_client = \
-        vision.ImageAnnotatorClient.from_service_account_info(service_account_info)
+    self.vision_client = (
+        vision.ImageAnnotatorClient.from_service_account_info(service_account_info))
 
   def __enter__(self):
     return OcrUtils(self.vision_client)
@@ -25,7 +25,7 @@ class OcrUtils:
   def __init__(self, vision_client):
     self.vision_client = vision_client
 
-  def extract_text_from_image(self, file_path):
+  def extract_text(self, file_path, mime_type):
     """
       Perform OCR on a local image or PDF file using Google Cloud Vision API.
       
@@ -35,60 +35,41 @@ class OcrUtils:
       Returns:
           str: Extracted text from the file.
     """
+
+    # Load file content.
     with io.open(file_path, "rb") as image_file:
       content = image_file.read()
 
-    image = vision.Image(content=content)
-    response = self.vision_client.text_detection(image=image)
+    if mime_type == "application/pdf":
+      # Construct the PDF input
+      pdf_source = {"content": content, "mime_type": mime_type}
 
-    if response.error.message:
-      raise Exception(f"Vision API Error: {response.error.message}")
+      # Construct the request
+      request = {
+          "input_config": pdf_source,
+          "features": [{
+              "type": vision.Feature.Type.DOCUMENT_TEXT_DETECTION
+          }]
+      }
 
-    # Extract and return text
-    return response.full_text_annotation.text
+      # Send the request
+      responses = self.vision_client.batch_annotate_files(requests=[request]).responses
 
-  def extract_text_from_pdf(self, file_path):
-    """
-      Perform OCR on a PDF file using Google Cloud Vision API.
+      # Process the responses
+      text = ""
+      for response in responses:
+        for page_response in response.responses:
+          if page_response.error.message:
+            raise Exception(f"Vision API Error: {page_response.error.message}")
+          text += page_response.full_text_annotation.text
+    else:
+      image = vision.Image(content=content)
+      response = self.vision_client.text_detection(image=image)
 
-      Args:
-          file_path (str): Path to the PDF file.
+      if response.error.message:
+        raise Exception(f"Vision API Error: {response.error.message}")
 
-      Returns:
-          str: Extracted text from the PDF.
-    """
-    """
-      TODO: handle large PDFs
-      pdf_source = vision.types.InputConfig(
-        gcs_source=vision.types.GcsSource(uri="gs://your-bucket-name/document.pdf"),
-        mime_type="application/pdf"
-      )
-    """
-
-    # Read the PDF file and encode it in base64
-    with io.open(file_path, "rb") as pdf_file:
-      content = pdf_file.read()
-
-    # Construct the PDF input
-    pdf_source = {"content": content, "mime_type": "application/pdf"}
-
-    # Construct the request
-    request = {
-        "input_config": pdf_source,
-        "features": [{
-            "type": vision.Feature.Type.DOCUMENT_TEXT_DETECTION
-        }]
-    }
-
-    # Send the request
-    responses = self.vision_client.batch_annotate_files(requests=[request]).responses
-
-    # Process the responses
-    text = ""
-    for response in responses:
-      for page_response in response.responses:
-        if page_response.error.message:
-          raise Exception(f"Vision API Error: {page_response.error.message}")
-        text += page_response.full_text_annotation.text
+      # Extract and return text
+      text = response.full_text_annotation.text
 
     return text
