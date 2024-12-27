@@ -1,8 +1,11 @@
+# drive_service.py
+#
+# Wrap the Google Drive services.
+#
 import io
-from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from environment import get_service_account_info_from_environment
+from environment import get_service_credentials
 
 # TODO: Add logging and error monitoring.
 
@@ -18,8 +21,7 @@ class DriveService:
   SCOPES = ["https://www.googleapis.com/auth/drive"]
 
   def __init__(self):
-    service_account_info = get_service_account_info_from_environment()
-    credentials = Credentials.from_service_account_info(service_account_info, scopes=self.SCOPES)
+    credentials = get_service_credentials(scopes=self.SCOPES)
     self.drive_service = build("drive", "v3", credentials=credentials)
 
   def __enter__(self):
@@ -145,3 +147,71 @@ class DriveServiceUtils:
         status, done = downloader.next_chunk()
         print(f"Downloading {file_id} progress: {int(status.progress() * 100)}%")
     return output_path
+
+  def move_file(file_id, new_parent_id):
+    """
+      Move the file identified by file_id to the folder identified by new_parent_id.
+    """
+    # Retrieve the file metadata
+    file_metadata = self.drive_service.files().get(fileId=file_id, fields="parents").execute()
+
+    # Remove the file from its current parent folder(s), while adding the new parent.
+    previous_parents = ",".join(file_metadata.get("parents", []))
+    response = self.drive_service.files().update(
+        fileId=spreadsheet_id,
+        addParents=new_parent_id,
+        removeParents=previous_parents,
+        fields="id, parents",
+    ).execute()
+    return response
+
+  def delete_file(file_id):
+    """
+      Permanently delete a file from Google Drive.
+
+      Args:
+          file_id (str): The ID of the file to delete.
+
+      Returns:
+          ??
+    """
+    response = self.drive_service.files().delete(fileId=file_id).execute()
+    return response
+
+  def watch_folder(self, folder_id, webhook_url):
+    """
+      Create  a Google Drive watch channel.
+
+      Args:
+        channel_id (str): The unique ID of the channel to stop.
+        resource_id (str): The ID of the resource being watched.
+
+      Returns:
+        str: The resource ID of the watch
+    """
+    channel_id = f"nestli-{folder_id}"
+    watch_request = {
+        "id": channel_id,
+        "type": "web_hook",
+        "address": webhook_url,
+    }
+    response = self.drive_service.files().watch(fileId=folder_id, body=watch_request).execute()
+    return response["resourceId"]
+
+  def unwatch_folder(self, folder_id, resource_id):
+    """
+      Stop a Google Drive watch channel.
+
+      Args:
+        folder_id (str): The ID of the folder being watched.
+        resource_id (str): The resource ID of the watch.
+
+      Returns:
+        None
+    """
+    channel_id = f"nestli-{folder_id}"
+    body = {
+        "id": channel_id,
+        "resourceId": folder_id,
+    }
+    return self.drive_service.channels().stop(body=body).execute()

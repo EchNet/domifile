@@ -1,3 +1,7 @@
+# ocr.py
+#
+# Wrap the Google Cloud Vision services.
+#
 import base64
 import io
 from google.cloud import vision

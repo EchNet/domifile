@@ -5,8 +5,6 @@
 PIP=pip
 PYTHON=python
 
-.DEFAULT_GOAL: test
-
 setup: requirements.flag
 
 requirements.txt: requirements.in
@@ -17,3 +15,12 @@ requirements.txt: requirements.in
 requirements.flag: requirements.txt
 	$(PIP) install -r requirements.txt
 	touch requirements.flag
+
+run-api: setup
+	( . ./devsetup; python main.py run_flask_app )
+
+run-watchall: setup
+	( . ./devsetup; python main.py update_all_installations )
+
+run-watchme: setup
+	( . ./devsetup; python main.py update_one_inbox 1vxqiy2eZSdkbOrNkNhbeomknwxSiK77E )
