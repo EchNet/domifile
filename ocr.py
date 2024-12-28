@@ -5,7 +5,7 @@
 import base64
 import io
 from google.cloud import vision
-from environment import get_service_account_info_from_environment
+from environment import get_service_account_info
 
 
 class CharacterRecognitionService:

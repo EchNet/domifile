@@ -178,40 +178,27 @@ class DriveServiceUtils:
     response = self.drive_service.files().delete(fileId=file_id).execute()
     return response
 
-  def watch_folder(self, folder_id, webhook_url):
-    """
-      Create  a Google Drive watch channel.
+  def watch_resource(self, resource_id, webhook_url):
 
-      Args:
-        channel_id (str): The unique ID of the channel to stop.
-        resource_id (str): The ID of the resource being watched.
+    channel_id = f"nestli-{resource_id}"
 
-      Returns:
-        str: The resource ID of the watch
-    """
-    channel_id = f"nestli-{folder_id}"
     watch_request = {
         "id": channel_id,
         "type": "web_hook",
         "address": webhook_url,
     }
-    response = self.drive_service.files().watch(fileId=folder_id, body=watch_request).execute()
-    return response["resourceId"]
+    response = self.drive_service.files().watch(fileId=resource_id, body=watch_request).execute()
+    return response
 
-  def unwatch_folder(self, folder_id, resource_id):
+  def unwatch_folder(self, resource_id):
     """
       Stop a Google Drive watch channel.
-
-      Args:
-        folder_id (str): The ID of the folder being watched.
-        resource_id (str): The resource ID of the watch.
-
-      Returns:
-        None
     """
-    channel_id = f"nestli-{folder_id}"
+    channel_id = f"nestli-{resource_id}"
+
     body = {
         "id": channel_id,
-        "resourceId": folder_id,
+        "resourceId": resource_id,
     }
-    return self.drive_service.channels().stop(body=body).execute()
+    response = self.drive_service.channels().stop(body=body).execute()
+    return response

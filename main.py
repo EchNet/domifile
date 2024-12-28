@@ -1,8 +1,16 @@
 # main.py
 #
 import sys
+from db import create_tables
 from endpoints import run_flask_app
-from manager import update_all_installations, update_one_inbox
+from models.api_key import create_api_key, expire_api_key
+from models.installation import create_installation
+from manager import (
+    update_all_installations,
+    list_installations,
+    update_installation,
+    mark_installation_for_termination,
+)
 
 
 def main():
