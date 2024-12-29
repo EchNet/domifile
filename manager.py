@@ -10,7 +10,7 @@
 from models import Installation
 from watcher import Watcher
 from datetime import datetime, timedelta
-from drive_service import DriveService
+from connectors.drive_connector import DriveService
 
 
 class ServiceManager:

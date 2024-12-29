@@ -18,7 +18,7 @@ class DriveService:
     Args:
       credentials    Google Cloud access key structure.
   """
-  SCOPES = ["https://www.googleapis.com/auth/drive"]
+  SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
   def __init__(self):
     credentials = get_service_credentials(scopes=self.SCOPES)

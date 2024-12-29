@@ -1,6 +1,6 @@
 import os
-from drive_service import DriveService
-from ocr import CharacterRecognitionService
+from connectors.drive_connector import DriveService
+from connectors.ocr_connector import CharacterRecognitionService
 
 # TODO: logging, error handling, monitoring.
 

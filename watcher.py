@@ -11,7 +11,7 @@
 #
 
 from multiprocessing import Pool
-from drive_service import DriveService
+from connectors.drive_connector import DriveService
 from worker import run_file_worker
 
 WEBHOOK_URL = "https://hostname/nestli-webhook"
