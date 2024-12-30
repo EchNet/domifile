@@ -2,15 +2,16 @@
 #
 # Define the Installation model.
 #
-from db import db
+from flaskapp import db
 from datetime import datetime
 from forms import FormValidator
 from utils import validate_email, validate_drive_file_id, validate_json
 import json
 
 
-# Define the Installation model
 class Installation(db.Model):
+  """
+  """
   __tablename__ = 'installations'
 
   # Define allowed values of Installation.status

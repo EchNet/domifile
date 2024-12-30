@@ -1,10 +1,10 @@
-# Python/Django
+# Python
 __pycache__/
 *.py[cod]
 venv/
-static/
-media/
-dump.rdb
+db.sqlite3
+
+# App
 requirements.flag
 
 # Misc.

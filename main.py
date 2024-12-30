@@ -1,8 +1,8 @@
 # main.py
 #
 import sys
-from db import create_tables
 from endpoints import run_flask_app
+from models import create_tables
 from models.api_key import create_api_key, expire_api_key
 from models.installation import create_installation
 from manager import (

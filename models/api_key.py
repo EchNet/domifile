@@ -3,7 +3,7 @@
 # Define the ApiKey model.
 #
 from datetime import datetime
-from db import db
+from flaskapp import db
 from utils import generate_token, validate_email
 
 

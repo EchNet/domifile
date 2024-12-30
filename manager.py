@@ -7,6 +7,7 @@
 #
 # Every installation marked for termination will be terminated.
 #
+from flaskapp import flaskapp as app
 from models import Installation
 from watcher import Watcher
 from datetime import datetime, timedelta
@@ -14,7 +15,9 @@ from connectors.drive_connector import DriveService
 
 
 class ServiceManager:
-  # ServiceManager is responsible for maintaining the service as a whole.
+  """
+    ServiceManager is responsible for maintaining the service as a whole.
+  """
   REFRESH_DAYS = 3
 
   @classmethod
@@ -33,7 +36,9 @@ class ServiceManager:
 
 
 class InstallationManager:
-  # InstallationManager is responsible for one installation.
+  """
+    InstallationManager is responsible for one installation.
+  """
 
   @staticmethod
   def for_installation_id(installation_id):
@@ -85,39 +90,50 @@ class InstallationManager:
 # Management command.
 #
 def update_all_installations():
-  print("update all installations")
-  ServiceManager.update_all_installations()
+  """
+  """
+  with app.app_context():
+    print("update all installations")
+    ServiceManager.update_all_installations()
 
 
 #
 # Management command.
 #
 def list_installations():
-  installations = Installation.query.filter(Installation.status != Installation.Status.TERMINATED)
-  for installation in installations:
-    print(
-        f"{installation.id} {installation.creator} {installation.root_folder_id} {installation.status}"
-    )
-    count += 1
-  if count == 0:
-    print("No installations.")
+  """
+  """
+  with app.app_context():
+    installations = Installation.query.filter(
+        Installation.status != Installation.Status.TERMINATED)
+    count = 0
+    for installation in installations:
+      print(
+          f"{installation.id} {installation.creator} {installation.root_folder_id} {installation.status}"
+      )
+      count += 1
+    if count == 0:
+      print("No installations.")
 
 
 #
 # Management command.
 #
 def mark_installation_for_termination(installation_id):
-  installation = Installation.for_installation_id(installation_id)
-  if installation:
-    if installation.status == Installation.Status.MARKED_FOR_TERMINATION:
-      print("Installation is already marked for termination")
-    elif installation.status == Installation.Status.TERMINATED:
-      print("Installation is already terminated")
+  """
+  """
+  with app.app_context():
+    installation = Installation.for_installation_id(installation_id)
+    if installation:
+      if installation.status == Installation.Status.MARKED_FOR_TERMINATION:
+        print("Installation is already marked for termination")
+      elif installation.status == Installation.Status.TERMINATED:
+        print("Installation is already terminated")
+      else:
+        print("Marked installation for termination.")
+        installation.mark_for_termination()
     else:
-      print("Marked installation for termination.")
-      installation.mark_for_termination()
-  else:
-    print("No such installation.")
+      print("No such installation.")
 
 
 #
@@ -126,8 +142,9 @@ def mark_installation_for_termination(installation_id):
 def update_installation(installation_id):
   """
   """
-  installation = Installation.for_installation_id(installation_id)
-  if installation:
-    installation.update()
-  else:
-    print("No such installation.")
+  with app.app_context():
+    installation = Installation.for_installation_id(installation_id)
+    if installation:
+      installation.update()
+    else:
+      print("No such installation.")
