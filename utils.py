@@ -8,7 +8,7 @@ def generate_token(length=24):
 
 
 def validate_email(email):
-  pattern = r"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+  pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
   if not re.match(pattern, email):
     raise ValueError(f"Invalid email address: {email}")
   return email

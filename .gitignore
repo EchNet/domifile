@@ -6,9 +6,9 @@ db.sqlite3
 
 # App
 requirements.flag
+creds.json
 
 # Misc.
 .DS_Store
 *.swp
 devsetup
-google-creds.json

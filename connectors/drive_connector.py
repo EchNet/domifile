@@ -3,11 +3,9 @@
 # Wrap the Google Drive services.
 #
 import io
+from environment import get_service_credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from environment import get_service_credentials
-
-# TODO: Add logging and error monitoring.
 
 
 class DriveService:
@@ -19,27 +17,21 @@ class DriveService:
       credentials    Google Cloud access key structure.
   """
   SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+  FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+
+  # Dictionaries representing files have the following fields.
+  FILE_FIELDS = ("id", "name", "mimeType", "parents")
 
   def __init__(self):
     credentials = get_service_credentials(scopes=self.SCOPES)
     self.drive_service = build("drive", "v3", credentials=credentials)
 
   def __enter__(self):
-    return DriveServiceUtils(self.drive_service)
+    return self
 
   # No-op
   def __exit__(self, exc_type, exc_value, traceback):
     pass
-
-
-class DriveServiceUtils:
-  FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-
-  # Dictionaries representing files have the following fields.
-  FILE_FIELDS = ("id", "name", "mimeType", "parents")
-
-  def __init__(self, drive_service):
-    self.drive_service = drive_service
 
   def find_folders_by_name(self, folder_name):
     """
@@ -77,7 +69,7 @@ class DriveServiceUtils:
 
       Returns:
           list: A list of parent folder IDs (can be multiple if the file is in shared drives or multiple folders).
-      """
+    """
     # Retrieve the file metadata including parent folder(s)
     file_metadata = self.drive_service.files().get(fileId=file_id, fields="parents").execute()
 
@@ -97,7 +89,8 @@ class DriveServiceUtils:
     """
     # TODO: allow pagination
     results = self.drive_service.files().list(
-        q=query, fields=f"files({', '.join(self.FILE_FIELDS)})").execute()
+        fields=f"files({', '.join(self.FILE_FIELDS)})").execute()
+    #q=query, fields=f"files({', '.join(self.FILE_FIELDS)})").execute()
     files = results.get("files", [])
     return files
 
@@ -125,7 +118,6 @@ class DriveServiceUtils:
     # Create the folder
     folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
 
-    print(f"Folder '{folder_name}' created with ID: {folder['id']}")
     return folder["id"]
 
   def download_file(self, file_id, output_path):
@@ -179,7 +171,8 @@ class DriveServiceUtils:
     return response
 
   def watch_resource(self, resource_id, webhook_url):
-
+    """
+    """
     channel_id = f"nestli-{resource_id}"
 
     watch_request = {

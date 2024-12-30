@@ -2,7 +2,7 @@
 #
 # Define the Installation model.
 #
-from flaskapp import db
+from flaskapp import flaskapp as app, db
 from datetime import datetime
 from forms import FormValidator
 from utils import validate_email, validate_drive_file_id, validate_json
@@ -16,7 +16,7 @@ class Installation(db.Model):
 
   # Define allowed values of Installation.status
   class Status:
-    READY = 'READY',
+    READY = 'READY'
     IN_SERVICE = 'IN_SERVICE',
     MARKED_FOR_TERMINATION = 'MARKED_FOR_TERMINATION'
     TERMINATED = 'TERMINATED'
@@ -48,7 +48,7 @@ class Installation(db.Model):
     #
     # TODO: encrypt the service account credentials
     #
-    new_installation = Installation(**values, status=cls.Status.READY)
+    new_installation = Installation(**values)
     db.session.add(new_installation)
     if commit:
       db.session.commit()
@@ -74,20 +74,28 @@ class Installation(db.Model):
 #
 def validate_installation_values(values):
   FormValidator(
-      required_fields=['creator', 'root_folder_id', 'service_account_info']).validate(data)
+      required_fields=['creator', 'root_folder_id', 'service_account_info']).validate(values)
   validate_email(values["creator"])
   validate_drive_file_id(values["root_folder_id"])
   validate_json(values["service_account_info"])
+  return values
 
 
 #
 # Management/API command
 #
-def create_installation(creator, root_folder_id, service_account_info):
-  values = {
-      "creator": creator,
-      "root_folder_id": root_folder_id,
-      "service_account_info": service_account_info,
-  }
-  validate_installation_values(values)
-  return Installation.create(values)
+def create_installation(creator, root_folder_id, service_account_filename):
+  """
+  """
+  with app.app_context():
+
+    with open(service_account_filename, "r") as f:
+      service_account_info = f.read()
+
+    values = validate_installation_values({
+        "creator": creator,
+        "root_folder_id": root_folder_id,
+        "service_account_info": service_account_info,
+    })
+
+    return Installation.create(values)
