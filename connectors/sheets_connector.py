@@ -15,8 +15,10 @@ class SheetsService:
   VERSION = "v4"
   SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-  def __init__(self):
-    credentials = get_service_credentials()
+  def __init__(self, service_account_info=None):
+    if not service_account_info:
+      service_account_info = ServiceAccountInfo.from_env("GOOGLE_SERVICE_ACCT_CREDENTIALS")
+    credentials = service_account_info.get_scoped_credentials(scopes=self.SCOPES)
     self.sheets_service = build(self.SERVICE_NAME, self.VERSION, credentials=credentials)
 
   def __enter__(self):

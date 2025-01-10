@@ -4,12 +4,13 @@ import sys
 from endpoints import run_flask_app
 from models import create_tables
 from models.api_key import create_api_key, expire_api_key
-from models.installation import create_installation
-from manager import (
-    update_all_installations,
+from managers.commands import (
+    create_installation,
     list_installations,
-    update_installation,
+    update_installations,
     mark_installation_for_termination,
+    simulate_webhook,
+    tear_down,
 )
 
 

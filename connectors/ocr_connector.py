@@ -2,32 +2,28 @@
 #
 # Wrap the Google Cloud Vision services.
 #
-import base64
 import io
+from environment import ServiceAccountInfo
 from google.cloud import vision
-from environment import get_service_account_info
 
 
 class CharacterRecognitionService:
 
-  def __init__(self):
-    # Google Cloud Vision client
-    service_account_info = get_service_account_info_from_environment()
+  def __init__(self, service_account_info=None):
+    """
+    """
+    if not service_account_info:
+      service_account_info = ServiceAccountInfo.from_env("GOOGLE_SERVICE_ACCT_CREDENTIALS")
+    service_account_info = service_account_info.parsed
     self.vision_client = (
         vision.ImageAnnotatorClient.from_service_account_info(service_account_info))
 
   def __enter__(self):
-    return OcrUtils(self.vision_client)
+    return self
 
   # No-op
   def __exit__(self, exc_type, exc_value, traceback):
     pass
-
-
-class OcrUtils:
-
-  def __init__(self, vision_client):
-    self.vision_client = vision_client
 
   def extract_text(self, file_path, mime_type):
     """
