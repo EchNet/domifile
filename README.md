@@ -1,4 +1,30 @@
+# Architecture Overview
+
+1. Trigger
+  ** A file enters the designated inbox folder in Google Drive.
+  ** Google Drive Push Notification is sent to Cloud Pub/Sub.
+
+2. Event Handling:
+
+  ** Cloud Run listens to Pub/Sub events and initiates the workflow.
+  ** Extracted metadata is analyzed to determine the workflow type (e.g., Invoice, Homeowner Request).
+
+3. Workflow Automation:
+
+  ** Google Cloud Tasks schedules the workflow steps.
+  ** Tasks include:
+    *** Updating a Google Sheet (e.g., logging an invoice).
+    *** Scheduling calendar events (e.g., payment reminders).
+    *** Sending email notifications (using Gmail API).
+
+4. Orchestration and Status Tracking:
+
+  ** Workflow status and history are maintained in Google Sheets.
+
+
 # Prerequisites
+
+## Development tools
 
 Ensure you have the following installed:
 
@@ -7,17 +33,19 @@ Ensure you have the following installed:
 * Google Apps Script (clasp)
 * Ngrok (for local development with OAuth)
 
-# Set up Google Cloud & APIs
+## Google Cloud project
 
 Go to console.cloud.google.com and create a new Google Cloud project.
 
 Enable the following APIs:
 
+* Google Cloud Tasks API
 * Google Drive API
 * Google Docs API
-* Google Sheets API.
+* Google Sheets API
 * Google Vision API
-* Google Vision AI API.
+* Google Vision AI API
+* Gmail API
 
 Create OAuth 2.0 Client Credentials (under APIs & Services > Credentials).
 Hang on to the `client_secrets.json` file.
@@ -26,6 +54,12 @@ Create a secret in Secret Manager:
 ```
   gcloud secrets create domifile-oauth-tokens --replication-policy="automatic"
 ```
+
+Create a service account and configure IAM roles:
+* roles/cloudtasks.enqueuer
+* roles/drive.reader
+* roles/sheets.editor
+* roles/calendar.admin
 
 # Setting Up API Server
 
