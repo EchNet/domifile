@@ -7,7 +7,7 @@
 #
 from datetime import datetime, timedelta
 from managers.installation_manager import InstallationManager
-from models import Installation
+from models.installation import Installation
 
 
 class ServiceManager:

@@ -8,5 +8,6 @@ google-cloud-secret-manager
 google-cloud-vision
 oauth2client
 openai
+python-dotenv
 sqlalchemy
 yapf

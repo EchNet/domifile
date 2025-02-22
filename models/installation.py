@@ -2,11 +2,10 @@
 #
 # Define the Installation model.
 #
-from flaskapp import flaskapp as app, db
+from db import db
 from datetime import datetime
 from forms import FormValidator
 from utils import validate_email, validate_drive_file_id, validate_json
-import json
 
 
 class Installation(db.Model):

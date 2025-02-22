@@ -10,7 +10,7 @@
 from connectors.drive_connector import DriveService
 from environment import ServiceAccountInfo
 from managers.inbox_file_manager import InboxFileManager
-from models import Installation
+from models.installation import Installation
 
 
 class InstallationManager:

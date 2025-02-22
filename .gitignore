@@ -5,10 +5,11 @@ venv/
 db.sqlite3
 
 # App
+app.log
+.env
 requirements.flag
 creds.json
 
 # Misc.
 .DS_Store
 *.swp
-devsetup
