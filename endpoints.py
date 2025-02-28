@@ -2,6 +2,9 @@
 #
 # API methods for creating, retrieving and terminating installations.
 #
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def define_endpoints(app):
@@ -10,31 +13,39 @@ def define_endpoints(app):
   from flask import abort, request, jsonify
   from managers.installation_manager import InstallationManager
   from models.installation import Installation
-  from multiprocessing import Process
+
+  @app.before_request
+  def log_request():
+    print(request.method, request.url)
+    print(request.headers)
 
   # Route for webhook
   @app.route('/webhook', methods=['POST'])
   def webhook():
-    print("webhook invoked", request.headers, request.json)
-    channel_id = request.headers.get("X-Goog-Channel-ID")
-    resource_id = request.headers.get("X-Goog-Resource-ID")
+    print("webhook invoked")
+    changed = request.headers.get("X-Goog-Changed")
+    channel_id = request.headers.get("X-Goog-Channel-Id")
+    resource_id = request.headers.get("X-Goog-Resource-Id")
+    resource_uri = request.headers.get("X-Goog-Resource-Uri")
     if not channel_id or not resource_id:
+      print("webhook: missing header(s) in request")
       abort(400)
-    print(f"channel_id={channel_id}, resource_id={resource_id}")
-    installation_id = channel_id.split(":")[1]
-    installation = Installation.query.get(installation_id)
-    if not installation or installation.status != Installation.Status.IN_SERVICE:
-      abort(400)
-    print(f"installation_id={installation_id}")
-    process = Process(target=async_inbox_task, args=(installation_id, resource_id))
-    process.start()
-    return jsonify({"status": "OK"}), 202
+    print(f"webhook: channel_id={channel_id}, resource_id={resource_id}")
 
-  # Potentially long-running.
-  def async_inbox_task(installation_id, inbox_id):
-    print("Started inbox task")
+    installation_id = channel_id.split("-")[1]
+    print(f"installation_id={installation_id}")
+
     installation = Installation.query.get(installation_id)
-    InboxManager(installation).run_worker(inbox_id)
+    if not installation:
+      logger.error(f"Installation {installation_id} not found.")
+      abort(400)
+    if installation.status != Installation.Status.IN_SERVICE:
+      logger.error(f"Installation {installation_id} not in service ({installation.status}).")
+      abort(400)
+    # Temporary direct call
+    installation = Installation.query.get(installation_id)
+    InstallationManager(installation).run_inbox_worker()
+    return jsonify({"status": "OK"}), 200
 
   # Route to add a new Installation
   @app.route('/installation', methods=['POST'])

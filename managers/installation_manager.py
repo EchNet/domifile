@@ -8,9 +8,12 @@
 # Every installation marked for termination will be terminated.
 #
 from connectors.drive_connector import DriveService
+from datetime import datetime, timezone, timedelta
+import dateutil
 from environment import ServiceAccountInfo
 from managers.inbox_file_manager import InboxFileManager
 from models.installation import Installation
+import os
 
 
 class InstallationManager:
@@ -33,7 +36,7 @@ class InstallationManager:
     self.drive_service = DriveService(
         ServiceAccountInfo.from_json_string(self.installation.service_account_info))
 
-    DESTINATION_FOLDERS = ["Minutes", "Proposals", "Notices", "Invoices", "Receipts", "2025"]
+    DESTINATION_FOLDERS = ["Minutes", "Proposals", "Notices", "Invoices", "Receipts", "SYSTEM"]
 
     def folder_of_name(folder_name):
       # TODO: handle trashed inbox
@@ -56,16 +59,24 @@ class InstallationManager:
     """
       Start, continue or terminate this installation's watcher as appropriate.
     """
-    WEBHOOK_URL = "https://hostname/webhook"
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if not webhook_url:
+      raise ValueError("Environment variable WEBHOOK_URL must be set")
 
     installation = self.installation
+    channel_id = f"domi-{installation.id}"
+
+    ##########################################
+    # Inner functions
+    ##########################################
 
     def start_watcher():
       """
         Set up a Google Drive watch on the inbox.
       """
-      return self.drive_service.watch_resource(source_file_id=self.inbox_id,
-                                               webhook_url=WEBHOOK_URL)
+      return self.drive_service.create_watch_channel(channel_id=channel_id,
+                                                     file_id=self.inbox_id,
+                                                     webhook_url=webhook_url)
 
     def refresh_watcher():
       cancel_watcher()
@@ -74,14 +85,18 @@ class InstallationManager:
     def cancel_watcher():
       if installation.inbox_watcher_resource_id:
         print(f"Canceling watcher on {self.inbox_id}")
-        self.drive_service.unwatch_resource(source_file_id=self.inbox_id,
-                                            resource_id=installation.inbox_watcher_resource_id)
+        self.drive_service.close_watch_channel(channel_id=channel_id,
+                                               resource_id=installation.inbox_watcher_resource_id)
       else:
         print(f"No watcher resource ID on {self.inbox_id}... ignoring.")
 
+    ##########################################
+    # END Inner functions
+    ##########################################
+
     try:
       if installation.status == Installation.Status.READY:
-        print("Starting up installation {installation.id}")
+        print(f"Starting up installation {installation.id}")
         inbox_watcher_resource_id = start_watcher()
         installation.update(
             dict(status=Installation.Status.IN_SERVICE,
@@ -101,18 +116,37 @@ class InstallationManager:
       installation.update(dict(status=Installation.Status.BLOCKED))
       raise Exception(f"Unable to update watcher on INBOX") from e
 
-  def run_inbox_worker(self, resource_id=None):
+  def run_inbox_worker(self):
     """
-      Examine the contents of the inbox to find new files that require
-      organization.
+      Examine the contents of the inbox to find new files that require handling.
     """
-    if resource_id is not None and self.inbox_id != resource_id:
-      print("WARNING: inbox has moved")
-
-    # Get the contents of the inbox.  Ignore folders for now.
-    files = self.drive_service.query().children_of(self.inbox_id).excluding_folders().list()
+    # List the contents of the inbox.
+    files = self.drive_service.query().children_of(self.inbox_id).list()
     for file in files:
-      try:
-        InboxFileManager(self, file).process_inbox_file()
-      except Exception as e:
-        raise Exception(f"Unable to organize files in INBOX") from e
+      file_id = file['id']
+      file_name = file['name']
+      file_properties = file.get("properties") or {}
+
+      # Check if the property 'initiated_at' is present
+      initiated_at = file_properties.get("initiated_at")
+      if initiated_at:
+        try:
+          # Parse the date as timezone-aware
+          initiated_datetime = dateutil.parser.isoparse(initiated_at)
+          initiated_datetime = initiated_datetime.astimezone(timezone.utc)
+          # Get current time in UTC
+          now = datetime.now(timezone.utc)
+          # Check if it is less than one hour in the past
+          if now - initiated_datetime <= timedelta(hours=1):
+            # Skip file.
+            continue
+        except Exception as e:
+          print(f"Error: file={file_name} {e}")
+
+        now = datetime.now(timezone.utc).isoformat()
+        self.drive_service.set_file_metadata(file_id, {"initiated_at": now})
+
+        try:
+          InboxFileManager(self, file).process_inbox_file()
+        except Exception as e:
+          print(f"Error: file={file_name} {e}")

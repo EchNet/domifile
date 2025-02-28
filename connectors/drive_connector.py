@@ -11,7 +11,23 @@ from googleapiclient.http import MediaIoBaseDownload
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
 # Dictionaries representing files have the following fields.
-FILE_FIELDS = ("id", "name", "mimeType", "parents")
+FILE_FIELDS = ("id", "name", "mimeType", "parents", "properties")
+
+
+def normalize_file(file):
+  """ We prefer snakecase. """
+
+  # Don't bother with supporting the outmoded practice of allowing multiple parents.
+  parent_ids = file.get("parents", [])
+  parent_id = parent_ids[0] if parent_ids else None
+
+  return {
+      "id": file.get("id"),
+      "name": file.get("name"),
+      "mime_type": file.get("mimeType"),
+      "parent_id": parent_id,
+      "properties": file.get("properties"),
+  }
 
 
 class DriveService:
@@ -38,45 +54,10 @@ class DriveService:
     # If there were cleanup to be done, it would be done here.
     pass
 
-  def get_file_metadata(self, file_id):
-    """
-      Retrieve a file's metadata, given its ID.
-
-      Args:
-          file_id (str): The ID of the file.
-
-      Returns:
-          Dictionary that includes: id, parent_id, name, mime_type
-    """
-    # Retrieve the file metadata including parent folder(s)
-    file_metadata = self.drive_service.files().get(fileId=file_id, fields="parents").execute()
-
-    return self._normalize_file_metadata(file_metadata)
-
-  @staticmethod
-  def _normalize_file_metadata(file_metadata):
-    """
-      Args:
-        A packet of file metadata returned by Drive API.
-
-      Returns: 
-        Dictionary that includes: id, parent_id, name, mime_type
-    """
-
-    # Get the parent folder IDs
-    parent_ids = file_metadata.get("parents", [])
-
-    # Don't bother with supporting the outmoded practice of allowing multiple parents.
-    parent_id = parent_ids[0] if parent_ids else None
-
-    return {
-        "id": file_metadata.get("id"),
-        "name": file_metadata.get("name"),
-        "mime_type": file_metadata.get("mimeType"),
-        "parent_id": parent_id,
-    }
-
   def query(self):
+    """
+      Query for Google Drive files..
+    """
 
     class QueryBuilder:
       """
@@ -124,7 +105,7 @@ class DriveService:
         results = self.drive_service.files().list(
             q=query, fields=f"files({', '.join(FILE_FIELDS)})").execute()
         files = results.get("files", [])
-        return [DriveService._normalize_file_metadata(f) for f in files]
+        return [normalize_file(f) for f in files]
 
       def get(self):
         all = self.list()
@@ -149,7 +130,7 @@ class DriveService:
     # Create the folder
     folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
 
-    return self._normalize_file_metadata(folder)
+    return normalize_file(folder)
 
   def download_file(self, file_id, output_path):
     """
@@ -201,45 +182,59 @@ class DriveService:
     response = self.drive_service.files().delete(fileId=file_id).execute()
     print(response)
 
-  def watch_resource(self, source_file_id, webhook_url):
+  def create_watch_channel(self, *, channel_id, file_id, webhook_url):
     """
-      Create a watch channel by which notifications of modifications to the given source source
-      folder, identified by its Drive ID, are sent to the given webhook URL.
+      Create a watch channel via which notifications of modifications to a given file 
+      or folder are sent to the given webhook URL.
 
       Parameters
-        source_file_id      (str) The drive ID of the source folder
-        webhook_url         (str) The URL of the webhook
+        channel_id   (str) A unique string to identify the channel.
+        file_id      (str) The drive ID of the source folder
+        webhook_url  (str) The URL of the webhook
 
       Returns
-        (str) The resource ID of the watch channel, as needed for closing the channel,.
+        (str) The resource ID of the watch channel, needed for closing the channel.
     """
-    channel_id = f"nestli-{source_file_id}"
-    print(f"Watcher: STARTING watch channel {channel_id}")
+    print(f"Watcher: CREATING watch channel channel_id={channel_id}")
 
-    watch_request = {
-        "id": channel_id,
-        "type": "web_hook",
-        "address": webhook_url,
-    }
-    response = self.drive_service.files().watch(fileId=source_file_id,
-                                                body=watch_request).execute()
-    return response["resourceId"]
+    response = self.drive_service.files().watch(fileId=file_id,
+                                                body={
+                                                    "id": channel_id,
+                                                    "type": "web_hook",
+                                                    "address": webhook_url,
+                                                }).execute()
+    resource_id = response["resourceId"]
+    print(f"Watcher: CREATED watch channel channel_id={channel_id}, resource_id={resource_id}")
+    return resource_id
 
-  def unwatch_resource(self, source_file_id, resource_id):
+  def close_watch_channel(self, *, channel_id, resource_id):
     """
       Close a Google Drive watch channel.
 
       Parameters
-        resource_id      (str) The resource ID of watch channel, as returned by watch_resource.
+        channel_id   (str) A unique string to identify the channel.
+        resource_id  (str) The resource ID of watch channel, as returned by create_watch_channel.
 
       Returns
         None
     """
-    channel_id = f"nestli-{source_file_id}"
-    print(f"Closing watch channel on resource {resource_id}, channel {channel_id}")
+    print(f"Watcher: CLOSING watch channel resource_id={resource_id}, channel_id={channel_id}")
 
-    body = {
+    self.drive_service.channels().stop(body={
         "id": channel_id,
         "resourceId": resource_id,
-    }
-    response = self.drive_service.channels().stop(body=body).execute()
+    }).execute()
+
+    print(f"Watcher: CLOSED watch channel")
+
+  def set_file_metadata(self, file_id, metadata):
+    print(f"Drive Connector: set metadata={metadata} on file={file_id}")
+    assert isinstance(metadata, dict), "metadata must be a dict"
+    result = self.drive_service.files().update(
+        fileId=file_id,
+        body={
+            "properties": metadata
+        },
+        fields="id, properties",
+    ).execute()
+    print(f"Drive Connector: {result}")

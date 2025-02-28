@@ -18,3 +18,6 @@ requirements.flag: requirements.txt
 
 run: setup
 	flask run
+
+ngrok:
+	ngrok http 8080
