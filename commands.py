@@ -12,7 +12,6 @@ def define_commands(app):
   from managers.service_manager import ServiceManager
   from managers.installation_manager import InstallationManager
   from models.installation import Installation
-  from connectors.drive_connector import DriveService
 
   ####################################################
   # Database maintenance

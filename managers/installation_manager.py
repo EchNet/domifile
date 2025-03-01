@@ -7,7 +7,7 @@
 #
 # Every installation marked for termination will be terminated.
 #
-from connectors.drive_connector import DriveService
+from connectors.drive_connector import DriveConnector, DriveFileNotFoundError
 from datetime import datetime, timezone, timedelta
 import dateutil
 from environment import ServiceAccountInfo
@@ -33,19 +33,26 @@ class InstallationManager:
 
     # Build a Google Drive service using the credentials provided by the creator of the
     # installation.
-    self.drive_service = DriveService(
+    self.drive_service = DriveConnector(
         ServiceAccountInfo.from_json_string(self.installation.service_account_info))
 
-    DESTINATION_FOLDERS = ["Minutes", "Proposals", "Notices", "Invoices", "Receipts", "SYSTEM"]
+    # Validate root folder.
+    root_folder = self.drive_service.get(self.root_folder_id)
+    if not root_folder:
+      raise ValueError(f"{root_folder_id}: no such folder")
+    if not root_folder.is_folder:
+      raise ValueError(f"{root_folder_id}: is not a folder")
+
+    DESTINATION_FOLDERS = ["Minutes", "Proposals", "Notices", "Invoices", "Receipts"]
 
     def folder_of_name(folder_name):
-      # TODO: handle trashed inbox
       folder = self.drive_service.query().children_of(
           self.root_folder_id).named(folder_name).only_folders().get()
       if folder is None:
         print(f"Creating folder {folder_name}")
-        folder = self.drive_service.create_folder(folder_name, self.root_folder_id)
-      return folder["id"]
+        folder = self.drive_service.create_folder(folder_name, self.root_folder_id,
+                                                  root_folder.owner)
+      return folder.id
 
     # Find and create folders for sorting documents.
     self.inbox_id = folder_of_name("INBOX")
@@ -63,18 +70,18 @@ class InstallationManager:
     if not webhook_url:
       raise ValueError("Environment variable WEBHOOK_URL must be set")
 
-    installation = self.installation
-    channel_id = f"domi-{installation.id}"
-
     ##########################################
     # Inner functions
     ##########################################
+
+    def get_channel_id():
+      return f"domi-{self.installation.id}"
 
     def start_watcher():
       """
         Set up a Google Drive watch on the inbox.
       """
-      return self.drive_service.create_watch_channel(channel_id=channel_id,
+      return self.drive_service.create_watch_channel(channel_id=get_channel_id(),
                                                      file_id=self.inbox_id,
                                                      webhook_url=webhook_url)
 
@@ -83,38 +90,58 @@ class InstallationManager:
       return start_watcher()
 
     def cancel_watcher():
-      if installation.inbox_watcher_resource_id:
+      if self.installation.inbox_watcher_resource_id:
         print(f"Canceling watcher on {self.inbox_id}")
-        self.drive_service.close_watch_channel(channel_id=channel_id,
-                                               resource_id=installation.inbox_watcher_resource_id)
+        self.drive_service.close_watch_channel(
+            channel_id=get_channel_id(), resource_id=self.installation.inbox_watcher_resource_id)
       else:
         print(f"No watcher resource ID on {self.inbox_id}... ignoring.")
+
+    def refresh_required():
+      last_refresh = self.installation.last_refresh
+      return not last_refresh or datetime.now(timezone.utc) - last_refesh > timedelta(days=1)
+
+    def advance():
+      """ If the Installation is ready for transition, execute the transition. """
+
+      # If installation is READY, put it into service.
+      if self.installation.status == Installation.Status.READY:
+        print(f"Starting up service installation={self.installation.id}")
+        inbox_watcher_resource_id = start_watcher()
+        return {
+            "inbox_watcher_resource_id": inbox_watcher_resource_id,
+            "status": Installation.Status.IN_SERVICE
+        }
+
+      # If installation is in service but the watcher has not been refreshed in
+      # over a day, refresh it.
+      if self.installation.status == Installation.Status.IN_SERVICE:
+        if refresh_required():
+          print(f"Refreshing service installation={self.installation.id}")
+          try:
+            inbox_watcher_resource_id = refresh_watcher()
+          except Exception as e:
+            print("ERROR: {e}")
+            return {"status": Installation.Status.BLOCKED}
+          return {"inbox_watcher_resource_id": inbox_watcher_resource_id}
+
+      # If installation is marked for termination, terminate it.
+      if self.installation.status == Installation.Status.MARKED_FOR_TERMINATION:
+        print(f"Terminating service installation={self.installation.id}")
+        try:
+          cancel_watcher()
+        except Exception as e:
+          print("WARNING: {e}")
+        return {"inbox_watcher_resource_id": "", "status": Installation.Status.TERMINATED}
 
     ##########################################
     # END Inner functions
     ##########################################
 
-    try:
-      if installation.status == Installation.Status.READY:
-        print(f"Starting up installation {installation.id}")
-        inbox_watcher_resource_id = start_watcher()
-        installation.update(
-            dict(status=Installation.Status.IN_SERVICE,
-                 inbox_watcher_resource_id=inbox_watcher_resource_id,
-                 last_refresh=True))
-      elif installation.status == Installation.Status.IN_SERVICE:
-        print(f"Continuing installation {installation.id}")
-        inbox_watcher_resource_id = refresh_watcher()
-        installation.update(
-            dict(inbox_watcher_resource_id=inbox_watcher_resource_id, last_refresh=True))
-      elif installation.status == Installation.Status.MARKED_FOR_TERMINATION:
-        print(f"Terminating installation {installation.id}")
-        cancel_watcher()
-        installation.update(
-            dict(status=Installation.Status.TERMINATED, inbox_watcher_resource_id=""))
-    except Exception as e:
-      installation.update(dict(status=Installation.Status.BLOCKED))
-      raise Exception(f"Unable to update watcher on INBOX") from e
+    updates = advance()
+    if updates:
+      updates.update({"last_refresh": datetime.utcnow()})
+      self.installation.update(updates)
 
   def run_inbox_worker(self):
     """
@@ -123,12 +150,9 @@ class InstallationManager:
     # List the contents of the inbox.
     files = self.drive_service.query().children_of(self.inbox_id).list()
     for file in files:
-      file_id = file['id']
-      file_name = file['name']
-      file_properties = file.get("properties") or {}
 
       # Check if the property 'initiated_at' is present
-      initiated_at = file_properties.get("initiated_at")
+      initiated_at = file.properties.get("initiated_at")
       if initiated_at:
         try:
           # Parse the date as timezone-aware
@@ -141,12 +165,12 @@ class InstallationManager:
             # Skip file.
             continue
         except Exception as e:
-          print(f"Error: file={file_name} {e}")
+          print(f"Error: file={file.name} {e}")
 
         now = datetime.now(timezone.utc).isoformat()
-        self.drive_service.set_file_metadata(file_id, {"initiated_at": now})
+        self.drive_service.set_file_metadata(file.id, {"initiated_at": now})
 
         try:
           InboxFileManager(self, file).process_inbox_file()
         except Exception as e:
-          print(f"Error: file={file_name} {e}")
+          print(f"Error: file={file.name} {e}")

@@ -19,6 +19,12 @@ def define_endpoints(app):
     print(request.method, request.url)
     print(request.headers)
 
+  # Route for health check.
+  @app.route('/', methods=['POST'])
+  def health_check():
+    print("health check invoked")
+    return jsonify({"status": "OK"}), 200
+
   # Route for webhook
   @app.route('/webhook', methods=['POST'])
   def webhook():

@@ -61,8 +61,6 @@ class Installation(db.Model):
 
   def update(self, values={}, commit=True):
     for key, value in values.items():
-      if key == "last_refresh":
-        value = datetime.utcnow()
       setattr(self, key, value)
     db.session.add(self)
     if commit:

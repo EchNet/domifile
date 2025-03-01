@@ -5,42 +5,48 @@
 import io
 from environment import ServiceAccountInfo
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
-
-# Google Drive folder MIME type:
-FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+from .file import File, FOLDER_MIME_TYPE
 
 # Dictionaries representing files have the following fields.
-FILE_FIELDS = ("id", "name", "mimeType", "parents", "properties")
+FILE_FIELDS = ("id", "name", "mimeType", "parents", "properties", "owners")
+FILE_FIELDS_SPEC = ", ".join(FILE_FIELDS)
 
 
-def normalize_file(file):
-  """ We prefer snakecase. """
-
-  # Don't bother with supporting the outmoded practice of allowing multiple parents.
-  parent_ids = file.get("parents", [])
-  parent_id = parent_ids[0] if parent_ids else None
-
-  return {
-      "id": file.get("id"),
-      "name": file.get("name"),
-      "mime_type": file.get("mimeType"),
-      "parent_id": parent_id,
-      "properties": file.get("properties"),
-  }
+class DriveFileNotFoundError(Exception):
+  pass
 
 
-class DriveService:
-  """
-    Authenticate using the given parsed service account info structure and build
-    a Google Drive service.
+class DriveAccessDeniedError(Exception):
+  pass
 
-    Args:
-      credentials    Google Cloud access key structure.
-  """
+
+def raise_error_from_http_error(http_error, message):
+  error_code = http_error.resp.status
+  if error_code == 404:
+    raise DriveFileNotFoundError(f"{message} - file not found") from http_error
+  elif error_code == 403:
+    raise DriveAccessDeniedError(f"{message} - access denied") from http_error
+  else:
+    raise http_error
+
+
+class DriveConnector:
+  """ Google Drive API Connector """
+
   SCOPES = ["https://www.googleapis.com/auth/drive"]
 
   def __init__(self, service_account_info=None):
+    """
+      Authenticate using the given parsed service account info structure and build
+      a Google Drive service.
+
+      Args:
+        service_account_info    Google Cloud service account credenials.
+    """
+    if isinstance(service_account_info, str):
+      service_account_info = ServiceAccountInfo.from_json_string(service_account_info)
     if not service_account_info:
       service_account_info = ServiceAccountInfo.from_env("GOOGLE_SERVICE_ACCT_CREDENTIALS")
     credentials = service_account_info.get_scoped_credentials(scopes=self.SCOPES)
@@ -54,30 +60,44 @@ class DriveService:
     # If there were cleanup to be done, it would be done here.
     pass
 
+  def get(self, file_id):
+    """ Fetch a file by its ID. """
+    try:
+      f = self.drive_service.files().get(fileId=file_id, fields=FILE_FIELDS_SPEC).execute()
+      return File(f)
+    except HttpError as error:
+      raise_error_from_http_error(error, f"Cannot get file {file_id}")
+
   def query(self):
     """
-      Query for Google Drive files..
-    """
+      List Google Drive files that match query filters.
 
-    class QueryBuilder:
-      """
-        Aid in the construction of a Google Drive query.
+      Returns:
+        A builder of a Google Drive query.
 
-        Invoke:
-          drive_service.query()
-
-        Filters:
+        The bulder supports the following filters:
           .named("name")
           .children_of(folder_id)
           .only_folders()
           .excluding_folders()
 
-        To execute:
+        To execute the completed query:
           .list()
 
-        Returns:
-          list: A list of file metadata
-      """
+          Returns:
+            list: A list of file metadata
+
+        Or, in case one or zero matches are expected:
+          .get()
+
+          Returns:
+            a File or null.
+
+        Example:
+          files = drive_service.query().named("INBOX").children_of(folder_id).get()
+    """
+
+    class QueryBuilder:
 
       def __init__(self, drive_service):
         self.query_parts = ["trashed=false"]
@@ -103,9 +123,11 @@ class DriveService:
         query = " and ".join(self.query_parts)
         # TODO: allow pagination
         results = self.drive_service.files().list(
-            q=query, fields=f"files({', '.join(FILE_FIELDS)})").execute()
+            q=query,
+            fields=f"files({FILE_FIELDS_SPEC})",
+        ).execute()
         files = results.get("files", [])
-        return [normalize_file(f) for f in files]
+        return [File(f) for f in files]
 
       def get(self):
         all = self.list()
@@ -113,24 +135,53 @@ class DriveService:
 
     return QueryBuilder(self.drive_service)
 
-  def create_folder(self, name, parent):
+  def create_folder(self, name, parent, owner=None):
     """
       Create a folder in Google Drive.
 
       Args:
           name (str): Name of the new folder.
           parent (str): ID of the parent folder.
+          owners (str, optional): Email address of the desired owner
 
       Returns:
           str: The ID of the created folder.
     """
-    # Folder metadata
-    folder_metadata = {"name": name, "mimeType": FOLDER_MIME_TYPE, "parents": [parent]}
+    print(f"Drive: Creating new folder {name}")
 
     # Create the folder
-    folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
+    folder = self.drive_service.files().create(
+        body={
+            "name": name,
+            "mimeType": FOLDER_MIME_TYPE,
+            "parents": [parent]
+        },
+        fields=FILE_FIELDS_SPEC,
+    ).execute()
+    folder = File(folder)
 
-    return normalize_file(folder)
+    print(f"Drive: Created new folder {name}")
+
+    # Change ownership.
+    if owner and owner != folder.owner:
+      try:
+        self.drive_service.permissions().create(
+            fileId=folder.id,
+            body={
+                'type': 'user',
+                'role': 'owner',
+                'emailAddress': owner,
+            },
+            transferOwnership=True,
+        ).execute()
+
+        print(f"Drive: ownership of {name} transferred to {owner}")
+        folder.owner = owner
+
+      except Exception as e:
+        print(f"Drive: WARNING: ownership of {name} not transferred to {owner} - {e}")
+
+    return folder
 
   def download_file(self, file_id, output_path):
     """
@@ -220,10 +271,13 @@ class DriveService:
     """
     print(f"Watcher: CLOSING watch channel resource_id={resource_id}, channel_id={channel_id}")
 
-    self.drive_service.channels().stop(body={
-        "id": channel_id,
-        "resourceId": resource_id,
-    }).execute()
+    try:
+      self.drive_service.channels().stop(body={
+          "id": channel_id,
+          "resourceId": resource_id,
+      }).execute()
+    except HttpError as error:
+      raise_error_from_http_error(error, "Cannot close watch channel {channel_id}")
 
     print(f"Watcher: CLOSED watch channel")
 

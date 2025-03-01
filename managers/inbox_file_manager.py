@@ -2,7 +2,6 @@
 #
 # Manage the processing of files that land in the inbox.
 #
-from connectors.drive_connector import DriveService
 from connectors.ocr_connector import CharacterRecognitionService
 from connectors.openai_connector import ChatConnector
 import os
