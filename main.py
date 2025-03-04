@@ -3,7 +3,11 @@
 from app import app
 from commands import define_commands
 from endpoints import define_endpoints
+from google_auth import define_google_auth
+from log import define_logging
 
+define_logging(app)
+define_google_auth(app)
 define_endpoints(app)
 define_commands(app)
 

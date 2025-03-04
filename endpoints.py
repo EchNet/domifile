@@ -1,45 +1,81 @@
 # endpoints.py
 #
-# API methods for creating, retrieving and terminating installations.
+# App endpoints.
 #
-import logging
-
-logger = logging.getLogger(__name__)
+# Includes API methods for creating, retrieving and terminating installations.
+#
 
 
 def define_endpoints(app):
 
   from auth import auth_required
-  from flask import abort, request, jsonify
+  from flask import abort, render_template, request, jsonify
+  from flask import session
+  from flask_dance.contrib.google import google
   from managers.installation_manager import InstallationManager
   from models.installation import Installation
 
   @app.before_request
   def log_request():
-    print(request.method, request.url)
-    print(request.headers)
+    app.logger.debug(f"Request: {request.method}, {request.url}")
+    app.logger.debug(f"Request headers: {request.headers}")
 
-  # Route for health check.
-  @app.route('/', methods=['POST'])
+  # Home page.
+  @app.route("/", methods=['GET'])
+  def index():
+    return render_template("index.html")
+
+  # Health check.
+  @app.route('/status', methods=['POST'])
   def health_check():
-    print("health check invoked")
+    app.logger.debug("health check invoked")
     return jsonify({"status": "OK"}), 200
+
+  @app.route("/admin-screen")
+  def admin_screen():
+    if not google.authorized:
+      app.logger.warning("User is not authorized, redirecting to login")
+      return redirect(url_for("google.login"))
+
+    resp = google.get("/oauth2/v2/userinfo")
+    user_info = resp.json()
+    session["user_email"] = user_info.get("email")
+
+    google_access_token = google.token["access_token"] if google.token else None
+
+    return render_template("admin-screen.html", google_access_token=google_access_token)
+
+  @app.route("/api/folder-selected", methods=["POST"])
+  def folder_selected():
+    data = request.json
+    folder_id = data.get("folder_id")
+    folder_name = data.get("folder_name")
+
+    if not folder_id:
+      app.logger.error("No folder ID received in selection")
+      return jsonify({"error": "No folder selected"}), 400
+
+    session["folder_id"] = folder_id
+    session["folder_name"] = folder_name
+
+    app.logger.info(f"User selected folder: {folder_name} (ID: {folder_id})")
+    return jsonify({"message": "Folder selected", "folder_id": folder_id})
 
   # Route for webhook
   @app.route('/webhook', methods=['POST'])
   def webhook():
-    print("webhook invoked")
+    app.logger.debug("webhook invoked")
     changed = request.headers.get("X-Goog-Changed")
     channel_id = request.headers.get("X-Goog-Channel-Id")
     resource_id = request.headers.get("X-Goog-Resource-Id")
     resource_uri = request.headers.get("X-Goog-Resource-Uri")
     if not channel_id or not resource_id:
-      print("webhook: missing header(s) in request")
+      app.logger.warning("webhook: missing header(s) in request")
       abort(400)
-    print(f"webhook: channel_id={channel_id}, resource_id={resource_id}")
+    app.logger.info(f"webhook: channel_id={channel_id}, resource_id={resource_id}")
 
     installation_id = channel_id.split("-")[1]
-    print(f"installation_id={installation_id}")
+    app.logger.info(f"installation_id={installation_id}")
 
     installation = Installation.query.get(installation_id)
     if not installation:

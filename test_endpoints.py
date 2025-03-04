@@ -4,6 +4,6 @@ def test_webhook_endpoint_missing_headers(client):
 
 
 def test_health_check(client):
-  response = client.post('/')
+  response = client.post('/status')
   assert response.status_code == 200
   assert response.json == {"status": "OK"}

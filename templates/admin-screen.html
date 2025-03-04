@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Select Drive Folder</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+  </head>
+  <body>
+    <h1>INSTALLATION: Select a Google Drive Folder</h1>
+    <button onclick="openPicker()">Pick Folder</button>
+    <p id="selected-folder"></p>
+
+    <script>
+        function openPicker() {
+            gapi.load('picker', function() {
+                var picker = new google.picker.PickerBuilder()
+                    .addView(google.picker.ViewId.FOLDERS)
+                    .setOAuthToken("{{ google_access_token }}")
+                    .setCallback(pickerCallback)
+                    .build();
+                picker.setVisible(true);
+            });
+        }
+
+        function pickerCallback(data) {
+            if (data.action === google.picker.Action.PICKED) {
+                var folder = data.docs[0];
+                document.getElementById("selected-folder").innerText = "Selected Folder: " + folder.name;
+
+                // Send folder selection to backend
+                fetch("/api/folder-selected", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ folder_id: folder.id, folder_name: folder.name })
+                });
+            }
+        }
+    </script>
+  </body>
+</html>
