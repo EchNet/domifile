@@ -7,13 +7,34 @@
 #
 # Every installation marked for termination will be terminated.
 #
-from connectors.drive_connector import DriveConnector, DriveFileNotFoundError
-from datetime import datetime, timezone, timedelta
+# TODO:
+# The inbox is not the only watchable folder per installation.  Extend the approach
+# allow for multiple watched folders.
+#
+# Drop the inbox_resource_id field of Installation.
+# Store the resource ID in the properties of the folder.
+# Refresh all watches periodically.
+#
+from datetime import datetime, timezone, timedelta, UTC
 import dateutil
-from environment import ServiceAccountInfo
-from managers.inbox_file_manager import InboxFileManager
-from models.installation import Installation
 import os
+
+from connectors.drive.DriveConnector import DriveConnector
+from connectors.drive.errors import DriveFileNotFoundError
+from models.Installation import Installation
+
+NO_ACTION = "none"
+VALID_ACTIONS = [
+    NO_ACTION,
+    "broadcast",
+    "classify",
+    "register-invoice",
+]
+BUCKET_ACTION_KEY = "--dof-action"
+
+
+def is_bucket(file):
+  return file.is_folder and BUCKET_ACTION_KEY in file.properties
 
 
 class InstallationManager:
@@ -21,50 +42,31 @@ class InstallationManager:
     InstallationManager is responsible for one installation.
   """
 
-  def __init__(self, installation):
-    """
-      Constructor
-
-      Parameters
-        installation     A current Installation model object
-    """
-    self.installation = installation
+  def __init__(self, context):
+    self.installation = context.installation
     self.root_folder_id = self.installation.root_folder_id
+    self.drive_connector = context.drive_connector
 
-    # Build a Google Drive service using the credentials provided by the creator of the
-    # installation.
-    self.drive_service = DriveConnector(
-        ServiceAccountInfo.from_json_string(self.installation.service_account_info))
+  def apply_template(self):
+    """ For example, the HOA template. """
+    pass
 
-    # Validate root folder.
-    root_folder = self.drive_service.get(self.root_folder_id)
-    if not root_folder:
-      raise ValueError(f"{root_folder_id}: no such folder")
-    if not root_folder.is_folder:
-      raise ValueError(f"{root_folder_id}: is not a folder")
+  def create_bucket(self, name, action=NO_ACTION):
+    existing_file = self.drive_connector.query().children_of(
+        self.root_folder_id).named(name).first()
+    if existing_file:
+      what = ("bucket"
+              if is_bucket(existing_file) else "folder" if existing_file.is_folder else "file")
+      raise Exception(f"There is already a {what} of that name.")
+    if action not in VALID_ACTIONS:
+      raise Exception(f"\"{action}\" is not a valid action.")
+    self.drive_connector.create_folder(name,
+                                       parent=self.root_folder_id,
+                                       properties={BUCKET_ACTION_KEY: action})
 
-    DESTINATION_FOLDERS = ["Minutes", "Proposals", "Notices", "Invoices", "Receipts"]
-
-    def folder_of_name(folder_name):
-      folder = self.drive_service.query().children_of(
-          self.root_folder_id).named(folder_name).only_folders().get()
-      if folder is None:
-        print(f"Creating folder {folder_name}")
-        folder = self.drive_service.create_folder(folder_name, self.root_folder_id,
-                                                  root_folder.owner)
-      return folder.id
-
-    # Find and create folders for sorting documents.
-    self.inbox_id = folder_of_name("INBOX")
-    self.system_folder_id = folder_of_name("SYSTEM")  # TODO: make non-writeable
-    self.destination_folders = {
-        folder_name: folder_of_name(folder_name)
-        for folder_name in DESTINATION_FOLDERS
-    }
-
-  def update_watcher(self):
+  def update_watchers(self):
     """
-      Start, continue or terminate this installation's watcher as appropriate.
+      Start, continue or terminate this installation's watchers as appropriate.
     """
     webhook_url = os.getenv("WEBHOOK_URL")
     if not webhook_url:
@@ -74,25 +76,25 @@ class InstallationManager:
     # Inner functions
     ##########################################
 
-    def get_channel_id():
-      return f"domi-{self.installation.id}"
+    def get_channel_id(folder_id):
+      return f"--dof-{self.installation.id}-{folder_id}"
 
-    def start_watcher():
+    def start_watcher(folder_id):
       """
         Set up a Google Drive watch on the inbox.
       """
-      return self.drive_service.create_watch_channel(channel_id=get_channel_id(),
-                                                     file_id=self.inbox_id,
-                                                     webhook_url=webhook_url)
+      return self.drive_connector.create_watch_channel(channel_id=get_channel_id(),
+                                                       file_id=folder_id,
+                                                       webhook_url=webhook_url)
 
-    def refresh_watcher():
-      cancel_watcher()
-      return start_watcher()
+    def refresh_watcher(folder_id):
+      cancel_watcher(folder_id)
+      return start_watcher(folder_id)
 
-    def cancel_watcher():
+    def cancel_watcher(folder_id):
       if self.installation.inbox_watcher_resource_id:
         print(f"Canceling watcher on {self.inbox_id}")
-        self.drive_service.close_watch_channel(
+        self.drive_connector.close_watch_channel(
             channel_id=get_channel_id(), resource_id=self.installation.inbox_watcher_resource_id)
       else:
         print(f"No watcher resource ID on {self.inbox_id}... ignoring.")
@@ -107,11 +109,11 @@ class InstallationManager:
       # If installation is READY, put it into service.
       if self.installation.status == Installation.Status.READY:
         print(f"Starting up service installation={self.installation.id}")
-        inbox_watcher_resource_id = start_watcher()
-        return {
-            "inbox_watcher_resource_id": inbox_watcher_resource_id,
-            "status": Installation.Status.IN_SERVICE
-        }
+        for subfolder in (self.drive_connector.query().children_of(
+            self.installation.root_folder_id).only_folders().list()):
+          if subfolder.properties.get("--dof-action"):
+            start_watcher(subfolder)
+        return {"status": Installation.Status.IN_SERVICE}
 
       # If installation is in service but the watcher has not been refreshed in
       # over a day, refresh it.
@@ -119,7 +121,10 @@ class InstallationManager:
         if refresh_required():
           print(f"Refreshing service installation={self.installation.id}")
           try:
-            inbox_watcher_resource_id = refresh_watcher()
+            for subfolder in (self.drive_connector.query().children_of(
+                installation.root_folder_id).only_folders().list()):
+              if subfolder.properties.get("--dof-action"):
+                refresh_watcher(subfolder)
           except Exception as e:
             print("ERROR: {e}")
             return {"status": Installation.Status.BLOCKED}
@@ -129,7 +134,10 @@ class InstallationManager:
       if self.installation.status == Installation.Status.MARKED_FOR_TERMINATION:
         print(f"Terminating service installation={self.installation.id}")
         try:
-          cancel_watcher()
+          for subfolder in (self.drive_connector.query().children_of(
+              installation.root_folder_id).only_folders().list()):
+            if subfolder.properties.get("--dof-watcher"):
+              cancel_watcher(subfolder)
         except Exception as e:
           print("WARNING: {e}")
         return {"inbox_watcher_resource_id": "", "status": Installation.Status.TERMINATED}
@@ -140,7 +148,7 @@ class InstallationManager:
 
     updates = advance()
     if updates:
-      updates.update({"last_refresh": datetime.utcnow()})
+      updates.update({"last_refresh": datetime.now(UTC)})
       self.installation.update(updates)
 
   def run_inbox_worker(self):
@@ -148,7 +156,7 @@ class InstallationManager:
       Examine the contents of the inbox to find new files that require handling.
     """
     # List the contents of the inbox.
-    files = self.drive_service.query().children_of(self.inbox_id).list()
+    files = self.drive_connector.query().children_of(self.inbox_id).list()
     for file in files:
 
       # Check if the property 'initiated_at' is present
@@ -168,9 +176,6 @@ class InstallationManager:
           print(f"Error: file={file.name} {e}")
 
         now = datetime.now(timezone.utc).isoformat()
-        self.drive_service.set_file_metadata(file.id, {"initiated_at": now})
+        self.drive_connector.update_file_properties(file.id, {"initiated_at": now})
 
-        try:
-          InboxFileManager(self, file).process_inbox_file()
-        except Exception as e:
-          print(f"Error: file={file.name} {e}")
+        # Now, run the action specified in the folder properties.

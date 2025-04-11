@@ -20,7 +20,7 @@ run: setup
 	flask run
 
 test: setup
-	pytest
+	python -m unittest
 
 ngrok:
 	ngrok http 8080

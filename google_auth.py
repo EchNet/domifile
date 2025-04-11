@@ -1,5 +1,14 @@
 from flask_dance.contrib.google import make_google_blueprint, google
 
+#
+# Users login and access the services having authenticated with OAuth.
+# We don't store OAuth credentials.  Therefore, automation must authenticate
+# using a service account.
+#
+# Thinking about personal edition... The service account could be owned by
+# the app and granted the permission by the user.  Like the Staples experience.
+#
+
 
 def define_google_auth(app):
   """ Google OAuth Setup """

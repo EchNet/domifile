@@ -1,3 +1,5 @@
+celery[redis]
+celery-redbeat
 Flask
 Flask-Dance
 Flask-SQLAlchemy
@@ -7,7 +9,6 @@ google-auth-oauthlib
 google-auth-httplib2
 google-cloud-secret-manager
 google-cloud-vision
-oauth2client
 openai
 pytest
 pytest-flask

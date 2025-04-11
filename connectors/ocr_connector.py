@@ -3,20 +3,16 @@
 # Wrap the Google Cloud Vision services.
 #
 import io
-from environment import ServiceAccountInfo
 from google.cloud import vision
 
 
 class CharacterRecognitionService:
 
-  def __init__(self, service_account_info=None):
+  def __init__(self, context):
     """
     """
-    if not service_account_info:
-      service_account_info = ServiceAccountInfo.from_env("GOOGLE_SERVICE_ACCT_CREDENTIALS")
-    service_account_info = service_account_info.parsed
-    self.vision_client = (
-        vision.ImageAnnotatorClient.from_service_account_info(service_account_info))
+    self.vision_client = (vision.ImageAnnotatorClient.from_service_account_info(
+        context.service_account_info))
 
   def __enter__(self):
     return self

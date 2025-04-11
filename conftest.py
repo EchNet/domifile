@@ -1,17 +1,18 @@
-import pytest
-from main import app
-from db import db
+# conftest.py
+
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 
-@pytest.fixture
-def client():
-  app.config['TESTING'] = True
-  app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'  # In-memory DB for tests
-
-  with app.test_client() as client:
-    with app.app_context():
-      db.create_all()  # Create tables
-    yield client
-    with app.app_context():
-      db.session.remove()
-      db.drop_all()  # Drop all tables after the test
+def create_app(config=None):
+  app = Flask(__name__)
+  app.config.update({
+      'SQLALCHEMY_DATABASE_URI': 'sqlite:///app.db',
+      'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+  })
+  if config:
+    app.config.update(config)
+  db.init_app(app)
+  return app

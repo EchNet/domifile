@@ -3,14 +3,16 @@
 # Define the Installation model.
 #
 from db import db
-from datetime import datetime
+from datetime import datetime, UTC
 from forms import FormValidator
 from utils import validate_email, validate_drive_file_id, validate_json
 
 
 class Installation(db.Model):
   """
+    An Installation is...
   """
+
   __tablename__ = 'installations'
 
   # Define allowed values of Installation.status
@@ -24,9 +26,10 @@ class Installation(db.Model):
   id = db.Column(db.Integer, primary_key=True)
   creator = db.Column(db.String(255), nullable=False, index=True)
   root_folder_id = db.Column(db.String(255), nullable=False, index=True, unique=True)
-  inbox_watcher_resource_id = db.Column(db.String(255), nullable=True)
   service_account_info = db.Column(db.Text, nullable=False)
-  when_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+  when_created = db.Column(db.DateTime(timezone=True),
+                           default=lambda: datetime.now(UTC),
+                           nullable=False)
   status = db.Column(db.String(50), nullable=False, default=Status.READY, index=True)
   last_refresh = db.Column(db.DateTime, nullable=True)
 
@@ -41,6 +44,14 @@ class Installation(db.Model):
         'status': self.status,
         'last_refresh': self.last_refresh.isoformat(),
     }
+
+  @classmethod
+  def get_by_id(cls, id_):
+    try:
+      id_casted = int(id_)
+    except ValueError:
+      raise ValueError("Invalid ID format: {id_}")
+    return db.session.get(Installation, id_casted)
 
   @classmethod
   def get_by_root_folder_id(cls, root_folder_id):

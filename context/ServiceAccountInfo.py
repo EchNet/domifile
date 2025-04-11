@@ -1,13 +1,11 @@
-# environment.py
-#
-# Extract configuration values from environment variables.
-#
+# ServiceAccountInfo.py
+
 import json
 import os
-from google.oauth2.service_account import Credentials
 
 
 class ServiceAccountInfo:
+  """ Acquire GCloud service account credentials from a variety of sources. """
 
   @classmethod
   def from_json_string(Cls, json_string, json_source="JSON string"):
@@ -26,7 +24,6 @@ class ServiceAccountInfo:
 
   @classmethod
   def from_file(Cls, filename):
-    cred_source = Cls()
     with open(filename, "r") as f:
       json_string = f.read()
     return Cls.from_json_string(json_string, f"file {filename}")
@@ -37,6 +34,3 @@ class ServiceAccountInfo:
   @property
   def parsed(self):
     return self.sa_info_obj
-
-  def get_scoped_credentials(self, scopes):
-    return Credentials.from_service_account_info(self.sa_info_obj, scopes=scopes)
