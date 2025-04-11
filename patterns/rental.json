@@ -1,0 +1,29 @@
+[
+  {
+    "name": "INBOX",
+    "action": "classify"
+  },
+  {
+    "name": "Receipts",
+    "action": "tabulate"
+  },
+  {
+    "name": "Invoices",
+    "action": "tabulate"
+  },
+  {
+    "name": "Maintenance Logs"
+  },
+  {
+    "name": "Booking Confirmations",
+    "action": "broadcast"
+  },
+  {
+    "name": "Regulatory Notices",
+    "action": "none"
+  },
+  {
+    "name": "Owner Statements",
+    "action": "tabulate"
+  }
+]

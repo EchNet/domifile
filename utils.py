@@ -29,3 +29,11 @@ def validate_json(json_string):
   except json.JSONDecodeError as e:
     raise ValueError(f"Invalid JSON: {e.msg} at line {e.lineno}, column {e.colno}") from e
   return json_string
+
+
+def strip_json_markers(text):
+  if text.startswith("```json"):
+    text = text[len("```json"):].lstrip()
+  if text.endswith("```"):
+    text = text[:-len("```")].rstrip()
+  return text

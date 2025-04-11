@@ -1,5 +1,5 @@
 # sheets_service.py
-#
+
 # Wrap the Google Sheets services.
 #
 

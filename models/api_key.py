@@ -2,7 +2,7 @@
 #
 # Define the ApiKey model.
 #
-from datetime import datetime
+from datetime import datetime, UTC
 from flaskapp import db
 from utils import generate_token, validate_email
 
@@ -19,7 +19,9 @@ class ApiKey(db.Model):
   id = db.Column(db.Integer, primary_key=True)
   token = db.Column(db.String(255), nullable=False, index=True, unique=True)
   email = db.Column(db.String(255), nullable=False)
-  when_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+  when_created = db.Column(db.DateTime(timezone=True),
+                           default=lambda: datetime.now(UTC),
+                           nullable=False)
   status = db.Column(db.String(50), nullable=False, default=Status.ACTIVE)
 
   IDENT_FIELDS = ("id", "key", "email")

@@ -2,11 +2,12 @@
 __pycache__/
 *.py[cod]
 venv/
-db.sqlite3
+*.sqlite3
 
 # App
 .env
 *.log
+*.log.*
 *.flag
 *creds.json
 

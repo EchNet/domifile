@@ -11,7 +11,7 @@ def verify_google_token(token):
   google_client_id = os.getenv("GOOGLE_CLIENT_ID")
   if not google_client_id:
     raise ValueError("GOOGLE_CLIENT_ID environment variable is not set!")
-  idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+  idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), google_client_id)
   return idinfo  # Contains user info like email
 
 
