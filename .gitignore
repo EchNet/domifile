@@ -9,7 +9,6 @@ venv/
 *.log
 *.log.*
 *.flag
-*creds.json
 
 # Misc.
 .DS_Store
