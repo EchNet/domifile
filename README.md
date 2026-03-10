@@ -1,119 +1,165 @@
+# Domifile
+
+Domifile is an AI-powered **organizational memory system for Homeowners Associations (HOAs)**.
+
+It connects to an HOA's Google Drive document archive and allows board members to ask natural-language questions about their documents. Domifile analyzes the documents, retrieves relevant information, and produces answers with citations to the source files.
+
+The long-term vision is an **operational knowledge layer for HOA governance**: contracts, vendors, maintenance history, governing documents, and institutional memory.
+
+---
+
+# Why Domifile Exists
+
+Volunteer HOA boards face recurring problems:
+
+* Institutional knowledge is lost when board members rotate off.
+* Important documents are buried in Google Drive folders or email.
+* Contracts, vendor relationships, and maintenance history become unclear.
+* Governing documents are difficult to search during meetings.
+
+Domifile addresses this by turning an HOA’s document archive into a **searchable knowledge base**.
+
+Example question:
+
+> When was the irrigation system replaced?
+
+Example answer:
+
+* Irrigation system replacement occurred in May 2018
+* Vendor: GreenScape Irrigation
+* Sources: `irrigation_contract_2018.pdf`, `minutes_2018_06.pdf`
+
+---
+
+# Milestone 1 – HOA Document Brain
+
+The first milestone focuses on proving the core value proposition:
+
+**Ask questions about HOA documents and receive answers with citations.**
+
+Pipeline:
+
+Google Drive → Document ingestion → Text extraction → Chunking → Embeddings → Retrieval → AI answer generation
+
+Features in Milestone 1:
+
+* Connect to a Google Drive folder
+* Ingest and index HOA documents
+* Retrieve relevant document chunks
+* Generate answers with cited sources
+* Minimal chat interface
+
+No structured entity extraction or workflow automation yet.
+
+---
+
 # Architecture Overview
 
-1. Trigger
-  ** A file enters the designated inbox folder in Google Drive.
-  ** Google Drive Push Notification is sent to Cloud Pub/Sub.
+Domifile uses a simple Retrieval-Augmented Generation (RAG) architecture.
 
-2. Event Handling:
+Components:
 
-  ** Cloud Run listens to Pub/Sub events and initiates the workflow.
-  ** Extracted metadata is analyzed to determine the workflow type (e.g., Invoice, Homeowner Request).
+1. **Drive Connector**
 
-3. Workflow Automation:
+   * Lists and downloads files from a selected Google Drive folder.
 
-  ** Google Cloud Tasks schedules the workflow steps.
-  ** Tasks include:
-    *** Updating a Google Sheet (e.g., logging an invoice).
-    *** Scheduling calendar events (e.g., payment reminders).
-    *** Sending email notifications (using Gmail API).
+2. **Document Ingestion**
 
-4. Orchestration and Status Tracking:
+   * Extracts text from supported document formats.
 
-  ** Workflow status and history are maintained in Google Sheets.
+3. **Chunking**
 
+   * Splits documents into manageable sections for retrieval.
 
-# Prerequisites
+4. **Embeddings**
 
-## Development tools
+   * Converts chunks into vector embeddings for semantic search.
 
-Ensure you have the following installed:
+5. **Vector Retrieval**
 
-* Python 3.9
-* Google Cloud SDK (gcloud command)
-* Google Apps Script (clasp)
-* Ngrok (for local development with OAuth)
+   * Searches for document chunks relevant to a question.
 
-## Google Cloud project
+6. **Query Planner**
 
-Go to console.cloud.google.com and create a new Google Cloud project.
+   * Expands user questions into multiple search queries.
 
-Enable the following APIs:
+7. **Answer Generation**
 
-* Google Cloud Tasks API
-* Google Drive API
-* Google Docs API
-* Google Sheets API
-* Google Vision API
-* Google Vision AI API
-* Gmail API
+   * Uses an LLM to synthesize answers from retrieved evidence.
 
-Create OAuth 2.0 Client Credentials (under APIs & Services > Credentials).
-Hang on to the `client_secrets.json` file.
+---
 
-Create a secret in Secret Manager:
-```
-  gcloud secrets create domifile-oauth-tokens --replication-policy="automatic"
-```
+# Technology Stack
 
-Create a service account and configure IAM roles:
-* roles/cloudtasks.enqueuer
-* roles/drive.reader
-* roles/sheets.editor
-* roles/calendar.admin
+Backend
 
-# Setting Up API Server
+* Python
+* Flask or FastAPI
+* PostgreSQL
+* pgvector
 
-The API server...
+Libraries
 
-* Is implemented based on Flask.
-* Manages subscriptions and installations.
-* Implements a webhook for notification of incoming documents.
+* google-api-python-client
+* pdfminer.six
+* python-docx
 
-To set up the API server (MacOS only):
+LLM Providers
 
-* Install Xcode Command Line Tools, including "make"
+* Google Gemini
+* OpenAI
 
-* `cd server`
+---
 
-* Create a virtual environment
+# Repository Structure
 
-* Run make.  Correct any errors that prevent all packages from being loaded.
+Suggested structure:
 
-* Create `.env` by copying `env.example` and editing the file to reflect your settings.
+domifile/
+drive/      # Google Drive integration
+ingest/     # document extraction + chunking
+rag/        # embeddings, retrieval, query planner
+api/        # HTTP endpoints
+ui/         # minimal chat interface
 
-* Run the server
+---
 
-```
-flask run
-```
+# Example Questions
 
-Your API will be running on http://127.0.0.1:5000/.
+Domifile should be able to answer questions such as:
 
-# Frontend (Google Apps Script UI Extension)
+* Who handles landscaping?
+* When was the irrigation system replaced?
+* What do the bylaws say about pets?
+* When was the pool resurfaced?
+* What insurance policies exist?
 
-* Open Google Drive.
-* Click New > More > Google Apps Script.
-* Replace Code.gs with the contents of `frontend/code.gs`
-* Save and deploy as an add-on.
+---
 
-# Local Testing (Ngrok for OAuth)
+# Future Direction
 
-To test OAuth authentication, expose your local Flask server using ngrok:
+Later milestones will add:
 
-```
-ngrok http 5000
-```
+* Entity extraction (vendors, contracts, maintenance events)
+* HOA knowledge graph
+* Automatic maintenance timeline
+* Vendor registry
+* Governing document interpretation
+* Workflow automation for board operations
 
-Copy the generated HTTPS forwarding URL and update your OAuth redirect URI in Google Cloud Console.
+Ultimately Domifile becomes the **institutional memory system for HOAs**.
 
-# Deploying to Google Cloud
+---
 
-Once tested locally, deploy using Google Cloud Run:
+# Status
 
-```
-gcloud auth login
-gcloud config set project your_project_id
-gcloud run deploy domofile --source . --platform managed --allow-unauthenticated
-```
+Domifile is currently in early development.
 
-Your API will be available via a public URL.
+Milestone 1 goal: demonstrate that AI can reliably answer HOA questions using the organization's existing document archive.
+
+---
+
+# License
+
+TBD
+
