@@ -13,7 +13,7 @@ The long-term vision is an **operational knowledge layer for HOA governance**: c
 Volunteer HOA boards face recurring problems:
 
 * Institutional knowledge is lost when board members rotate off.
-* Important documents are buried in Google Drive folders or email.
+* Important documents are buried in Google Drive folders or email, or worse, in a pile of paper.
 * Contracts, vendor relationships, and maintenance history become unclear.
 * Governing documents are difficult to search during meetings.
 
@@ -163,3 +163,13 @@ Milestone 1 goal: demonstrate that AI can reliably answer HOA questions using th
 
 TBD
 
+---
+
+# Getting Started
+
+```
+  brew install uv
+  uv venv
+  source .venv/bin/activate
+  uv pip install -e .
+```

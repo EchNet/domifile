@@ -1,15 +1,13 @@
-# Python
-__pycache__/
-*.py[cod]
-venv/
-*.sqlite3
-
-# App
-.env
+*.swp
+*.swo
 *.log
 *.log.*
-*.flag
-
-# Misc.
-.DS_Store
-*.sw[po]
+*.zip
+node_modules
+dist
+instance
+.env
+**/__pycache__/
+**/.DS_Store
+**/venv
+*.egg-info/
