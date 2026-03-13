@@ -2,9 +2,12 @@
 import click
 import os
 from flask.cli import with_appcontext
+from openai import OpenAI
 
 
 def install_ingest_commands(app):
+
+  openai = OpenAI()
 
   from domifile.db import db_transaction
   from domifile.drive import DriveService
@@ -43,8 +46,12 @@ def install_ingest_commands(app):
           doc = Document(drive_file_id=f.id, filename=f.name, text=text)
           db_session.add(doc)
           db_session.flush()
-          chunks = chunk_text(text)
-          for c in chunks:
-            db_session.add(Chunk(document_id=doc.id, text=c))
+
+          for c in chunk_text(text):
+            embedding = openai.embeddings.create(
+                model="text-embedding-3-small",
+                input=c,
+            ).data[0].embedding
+            db_session.add(Chunk(document_id=doc.id, text=c, embedding=embedding))
 
   app.cli.add_command(run_ingest)

@@ -168,6 +168,14 @@ TBD
 # Getting Started
 
 ```
+  brew install postgresql@14
+  brew install pgvector
+  createdb domifile
+  psql domifile
+  CREATE EXTENSION vector;
+```
+
+```
   brew install uv
   uv venv
   source .venv/bin/activate

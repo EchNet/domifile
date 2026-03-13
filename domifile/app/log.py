@@ -41,3 +41,4 @@ def configure_root_logging(verbose=False):
   logging.getLogger("werkzeug").setLevel(logging.WARNING)
   logging.getLogger("httpx").setLevel(logging.WARNING)
   logging.getLogger("httpcore").setLevel(logging.WARNING)
+  logging.getLogger("googleapiclient").setLevel(logging.WARNING)
