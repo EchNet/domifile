@@ -4,7 +4,7 @@ from sqlalchemy import text
 openai = OpenAI()
 
 
-def search_chunks(question, limit=5):
+def answer_question(question):
 
   from domifile.db import db_transaction
   from domifile.ingest.models import Chunk
@@ -15,23 +15,31 @@ def search_chunks(question, limit=5):
   with db_transaction(Chunk) as db_session:
 
     sql = text("""
-      SELECT text
-      FROM chunks
-      ORDER BY embedding <=> CAST(:qvec AS vector)
+      SELECT d.filename, c.text
+      FROM chunks c
+      JOIN documents d ON d.id = c.document_id
+      ORDER BY c.embedding <=> CAST(:qvec AS vector)
       LIMIT :limit
     """)
 
-    return db_session.execute(sql, {"qvec": qvec, "limit": limit}).fetchall()
+    rows = db_session.execute(sql, {"qvec": qvec, "limit": 3}).fetchall()
 
+    context = "\n\n".join(r.text for r in rows)
 
-def answer_question(question):
-  chunks = search_chunks(question, limit=5)
-
-  context = "\n\n".join(c.text for c in chunks)
+    sources = {r.filename for r in rows}
 
   resp = openai.responses.create(model="gpt-4.1-mini",
                                  input=f"""
-Answer the question using the context below.
+You are answering questions about condominium documents.
+
+Use ONLY the information in the context.
+Do not infer schedules, rules, or patterns not stated in the context.
+
+If the answer is not explicitly stated in the context, say "Not stated in the documents."
+
+When answering:
+- Quote the relevant text.
+- Identify the document it came from.
 
 Context:
 {context}
@@ -40,4 +48,7 @@ Question:
 {question}
 """)
 
-  return resp.output_text
+  return {
+      "output_text": resp.output_text,
+      "sources": list(s for s in sources),
+  }
