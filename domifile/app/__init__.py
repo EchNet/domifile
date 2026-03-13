@@ -1,5 +1,6 @@
 # domifile/app/__init__.py
 import importlib
+import logging
 import os
 from flask import Flask
 from os import path
@@ -50,20 +51,6 @@ class AppBuilder:
 
   # --------------------------------------------------------------------------------
 
-  def init_socketio(self):
-    """ Initialize the socket server if running in full server mode. """
-
-    # Don't initialize socketio for CLI commands.
-    if not "FLASK_RUN_FROM_CLI" in os.environ:
-
-      from .socketio import install_socketio
-
-      install_socketio(self.app)
-
-    return self
-
-  # --------------------------------------------------------------------------------
-
   @property
   def installers(self):
     """
@@ -73,6 +60,7 @@ class AppBuilder:
     module_names = (
         "domifile.db",
         "domifile.ingest",
+        "domifile.search",
     )
 
     for module_name in module_names:
@@ -85,8 +73,6 @@ class AppBuilder:
       yield installer_cls, module_name
 
   def install_components(self, last_installer=None):
-    import logging
-
     logger = logging.getLogger("app_init")
     logger.debug("INSTALL COMPONENTS")
 
@@ -129,7 +115,6 @@ def create_app(*, last_installer=None):
   return AppBuilder() \
     .configure_logging() \
     .configure_server() \
-    .init_socketio() \
     .install_components(last_installer) \
     .patch_cli() \
     .app

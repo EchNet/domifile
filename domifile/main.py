@@ -20,3 +20,6 @@ if __name__ == "__main__":
   # Still warnings from werkzeug
   if app.config.get("ENV") == "dev":
     kwargs["allow_unsafe_werkzeug"] = True
+
+  # Start servers
+  app.run(**kwargs)
