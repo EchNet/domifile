@@ -1,4 +1,4 @@
-# domifile/app/__init__.py
+# domifile/__init__.py
 import importlib
 import logging
 import os
@@ -51,57 +51,30 @@ class AppBuilder:
 
   # --------------------------------------------------------------------------------
 
-  @property
-  def installers(self):
-    """
-      Iterate over the platform and application components in dependency order 
-      Yield an `Installer` class from each module name provided.
-    """
-    module_names = (
-        "domifile.db",
-        "domifile.ingest",
-        "domifile.search",
-    )
+  def install_db(self):
+    from domifile.db import DatabaseRegistry
+    from .models import Base
 
-    for module_name in module_names:
-      module = importlib.import_module(module_name)
-      try:
-        installer_cls = getattr(module, "Installer")
-      except AttributeError:
-        raise ImportError(f"{module_name} does not define Installer")
-
-      yield installer_cls, module_name
-
-  def install_components(self, last_installer=None):
-    logger = logging.getLogger("app_init")
-    logger.debug("INSTALL COMPONENTS")
-
-    for installer, module_name in self.installers:
-      if hasattr(installer, "install"):
-        logger.debug(f"Installing {module_name}")
-        installer.install(self.app)
-      if installer == last_installer:
-        logger.debug(f"Breaking after installing {module_name}")
-        break
-
-    for installer, module_name in self.installers:
-      if hasattr(installer, "seal"):
-        logger.debug(f"Sealing {module_name}")
-        installer.seal()
-      if installer == last_installer:
-        logger.debug(f"Breaking after sealing {module_name}")
-        break
+    # Initialize DB registry
+    db_registry = DatabaseRegistry(self.app.config_obj)
+    db_registry.bind(Base, self.app.config_obj.DATABASE_URL)
+    db_registry.seal()
 
     return self
 
   # --------------------------------------------------------------------------------
 
-  def patch_cli(self):
-    """ Post-process the installed CLI commands """
+  def install_cli(self):
 
-    from .cli import patch_cli_commands
+    from .db.commands import install_db_commands
+    from .ingest.commands import install_ingest_commands
+    from .search.commands import install_search_commands
+    from .cli import patch_cli
 
-    patch_cli_commands(self.app)
+    install_db_commands(self.app)
+    install_ingest_commands(self.app)
+    install_search_commands(self.app)
+    patch_cli(self.app)
 
     return self
 
@@ -111,10 +84,10 @@ class AppBuilder:
 # ------------------------------------------------------------------
 
 
-def create_app(*, last_installer=None):
+def create_app():
   return AppBuilder() \
     .configure_logging() \
     .configure_server() \
-    .install_components(last_installer) \
-    .patch_cli() \
+    .install_db() \
+    .install_cli() \
     .app

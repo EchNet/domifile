@@ -1,10 +1,10 @@
-# domifile/app/cli.py
+# domifile/cli.py
 import click
 import sys
 import traceback
 
 
-def patch_cli_commands(app):
+def patch_cli(app):
   """ Prettify flask management command output. """
 
   def wrap_command_in_safe_invoke(cmd):

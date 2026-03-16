@@ -44,7 +44,7 @@ def mmr(query_vec, rows, k=4, lambda_=0.7):
 def answer_question(question):
 
   from domifile.db import db_transaction
-  from domifile.ingest.models import Chunk
+  from domifile.models import Chunk
 
   qvec = openai.embeddings.create(model="text-embedding-3-small",
                                   input=question).data[0].embedding

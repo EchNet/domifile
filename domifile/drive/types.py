@@ -1,6 +1,6 @@
 # domifile/drive/types.py
 
-import json
+from datetime import datetime
 
 
 class DriveFile:
@@ -38,6 +38,7 @@ class DriveFile:
     self.properties = f.get("properties") or {}
     self.trashed = f.get("trashed") or False
     self.owner = self._get_owner(f)
+    self.modified_time = datetime.fromisoformat(f.get("modifiedTime").replace("Z", "+00:00"))
 
   @staticmethod
   def _get_owner(f):
@@ -52,17 +53,3 @@ class DriveFile:
   @property
   def is_folder(self):
     return self.mime_type == self.FOLDER_MIME_TYPE
-
-  def dict(self):
-    return {
-        "id": self.id,
-        "name": self.name,
-        "mime_type": self.mime_type,
-        "properties": self.properties,
-        "parent_id": self.parent_id,
-        "owner": self.owner,
-        "trashed": self.trashed,
-    }
-
-  def __str__(self):
-    return json.dumps(self.dict())
