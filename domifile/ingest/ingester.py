@@ -1,6 +1,5 @@
 import logging
 import os
-from openai import OpenAI
 from datetime import datetime
 from sqlalchemy import select, delete
 
@@ -9,9 +8,9 @@ from ..drive import DriveService
 from .extractor import TextExtractor
 from ..models import Document, Chunk
 from .chunker import chunk_text
+from ..openai_adapter import create_embedding
 
 logger = logging.getLogger(__name__)
-openai = OpenAI()
 
 
 class Ingester:
@@ -105,8 +104,5 @@ class Ingester:
 
   def _chunk_text(self, text, doc, db_session):
     for c in chunk_text(text):
-      embedding = openai.embeddings.create(
-          model="text-embedding-3-small",
-          input=c,
-      ).data[0].embedding
+      embedding = create_embedding(c)
       db_session.add(Chunk(document_id=doc.id, text=c, embedding=embedding))

@@ -7,7 +7,8 @@ from .ingester import Ingester
 
 def install_ingest_commands(app):
 
-  DRIVE_FOLDER_ID = "1ZFgdI25w87_nWt0rELtjU51QMTpaBx0o"
+  DRIVE_FOLDER_ID = "1sUY1cB2GThDFRx9D7rIFLZklRssojm7m"
+  #DRIVE_FOLDER_ID = "1ZFgdI25w87_nWt0rELtjU51QMTpaBx0o"
 
   @click.command("run-ingest")
   @click.argument("drive_folder_ids", nargs=-1)
