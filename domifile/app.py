@@ -64,6 +64,16 @@ class AppBuilder:
 
   # --------------------------------------------------------------------------------
 
+  def install_blueprint(self):
+
+    from .blueprint import install_blueprint
+
+    install_blueprint(self.app)
+
+    return self
+
+  # --------------------------------------------------------------------------------
+
   def install_cli(self):
 
     from .db.commands import install_db_commands
@@ -89,5 +99,6 @@ def create_app():
     .configure_logging() \
     .configure_server() \
     .install_db() \
+    .install_blueprint() \
     .install_cli() \
     .app

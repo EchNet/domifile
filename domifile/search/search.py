@@ -1,7 +1,10 @@
 import logging
 import json
 import numpy as np
+import re
+from datetime import date
 from sqlalchemy import text
+from urllib.parse import urlparse, parse_qs, unquote
 
 from ..openai_adapter import create_embedding, create_response
 
@@ -105,15 +108,15 @@ def select_chunks(question):
 
 def create_context(question):
   chunks = select_chunks(question)
-  formatted_chunks = [
-      f"{c.text}\n\n- Source: [{c.filename}](https://drive.google.com/file/d/{c.drive_file_id}/view)"
-      for c in chunks
-  ]
+  formatted_chunks = [f"""[{c.id}]
+      {c.text}
+      """ for c in chunks]
   context = "\n\n-----\n\n".join(formatted_chunks)
-  return context
+  return context, {c.id: c for c in chunks}
 
 
 def create_prompt(context, question):
+  today = date.today().isoformat()
   return (f"""
 You are answering questions about property management documents.
 
@@ -122,7 +125,10 @@ Do not infer schedules, rules, or patterns not stated in the context.
 
 If the answer is not explicitly stated in the context, say "Not stated in the documents", but suggest relevant information stated in the context if it exists.
 
-Include the source IDs of all context items that are cited. 
+Include the source IDs of all context items that are cited. Use the format: [ID]
+For example: "The septic system was serviced on March 11, 2026 [43]."
+
+Today's date is {today}.
 
 Context:
 {context}
@@ -132,8 +138,41 @@ Question:
 """)
 
 
+def parse_answer(output_text: str):
+  sources = []
+
+  def extract(match):
+    url = match.group(0)
+
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+
+    label = None
+    if "f" in qs:
+      label = unquote(qs["f"][0])
+
+    sources.append({"url": url, "label": label or "Document"})
+
+    return ""  # remove from text
+
+  clean_text = LINK_RE.sub(extract, output_text).strip()
+
+  return {"answer": clean_text, "sources": sources}
+
+
 def answer_question(question):
-  context = create_context(question)
+  context, chunks = create_context(question)
   prompt = create_prompt(context, question)
-  output_text = create_response(prompt)
-  return output_text
+  answer = create_response(prompt)
+
+  cited_ids = list(set(int(x) for x in re.findall(r'\[(\d+)\]', answer)))
+
+  return {
+      "answer":
+      answer,
+      "sources": [{
+          "id": c.id,
+          "href": f"https://drive.google.com/file/d/{c.drive_file_id}/view",
+          "label": c.filename,
+      } for c in chunks.values() if c.id in cited_ids]
+  }
