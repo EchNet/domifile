@@ -1,0 +1,28 @@
+{
+  "name": "d20gears",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix frontend run dev\" \"flask run\""
+  },
+  "description": "",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EchNet/domifile.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/EchNet/domifile/issues"
+  },
+  "homepage": "https://github.com/EchNet/domifile#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "react-icons": "^5.5.0"
+  }
+}
