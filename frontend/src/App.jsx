@@ -15,7 +15,7 @@ export default function App() {
     setLoading(true);
     setResult(null);
 
-    const res = await fetch("/ask", {
+    const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
@@ -25,6 +25,45 @@ export default function App() {
     setResult(data);
     setLoading(false);
   };
+
+  function renderAnswer(answer, sources) {
+    const parts = answer.split(/(\[[\d,\s]+\])/g);
+
+    return parts.map((part, i) => {
+      const match = part.match(/\[([\d,\s]+)\]/);
+
+      if (!match) return <span key={i}>{part}</span>;
+
+      const ids = match[1]
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter(Boolean);
+
+      return (
+        <sup key={i} className="ml-1 space-x-1">
+          {ids.map((id, n) => {
+            const source = sources.find((s) => s.id === id);
+            if (!source) return null;
+
+            return (
+              <>
+                {n > 0 ? ", " : ""}
+                <a
+                  key={id}
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-600 hover:underline"
+                >
+                  {id}
+                </a>
+              </>
+            );
+          })}
+        </sup>
+      );
+    });
+  }
 
   return (
     <div ref={fsRootRef} className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center px-4">
@@ -70,7 +109,7 @@ export default function App() {
           </div>
 
           <div className="bg-white rounded-2xl shadow p-6 whitespace-pre-wrap">
-            {result.answer}
+            {renderAnswer(result.answer, result.sources)}
           </div>
 
           {/* Sources */}

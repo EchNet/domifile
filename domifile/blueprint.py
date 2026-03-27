@@ -35,7 +35,7 @@ def install_blueprint(app):
     if not body:
       return jsonify(error="Missing JSON body"), 400
 
-    question = body.question
+    question = body.get("question")
     if not question:
       return jsonify(error="Missing question"), 400
 

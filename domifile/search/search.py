@@ -4,7 +4,6 @@ import numpy as np
 import re
 from datetime import date
 from sqlalchemy import text
-from urllib.parse import urlparse, parse_qs, unquote
 
 from ..openai_adapter import create_embedding, create_response
 
@@ -112,7 +111,7 @@ def create_context(question):
       {c.text}
       """ for c in chunks]
   context = "\n\n-----\n\n".join(formatted_chunks)
-  return context, {c.id: c for c in chunks}
+  return context, chunks
 
 
 def create_prompt(context, question):
@@ -127,6 +126,7 @@ If the answer is not explicitly stated in the context, say "Not stated in the do
 
 Include the source IDs of all context items that are cited. Use the format: [ID]
 For example: "The septic system was serviced on March 11, 2026 [43]."
+When citing multiple sources, use [ID, ID] format.
 
 Today's date is {today}.
 
@@ -138,41 +138,45 @@ Question:
 """)
 
 
-def parse_answer(output_text: str):
-  sources = []
+def normalize_citations(text: str) -> str:
+  # remove spaces like [111, 222] → [111,222]
+  return re.sub(r'\[\s*([\d,\s]+)\s*\]',
+                lambda m: "[" + ",".join(s.strip() for s in m.group(1).split(",")) + "]", text)
 
-  def extract(match):
-    url = match.group(0)
 
-    parsed = urlparse(url)
-    qs = parse_qs(parsed.query)
+def extract_cited_ids(text: str) -> list[int]:
+  matches = re.findall(r'\[([\d,\s]+)\]', text)
 
-    label = None
-    if "f" in qs:
-      label = unquote(qs["f"][0])
+  ids = set()
+  for m in matches:
+    for part in m.split(","):
+      part = part.strip()
+      if part.isdigit():
+        ids.add(int(part))
 
-    sources.append({"url": url, "label": label or "Document"})
+  return sorted(ids)
 
-    return ""  # remove from text
 
-  clean_text = LINK_RE.sub(extract, output_text).strip()
+def build_sources(chunks, cited_ids):
+  by_id = {c.id: c for c in chunks}
 
-  return {"answer": clean_text, "sources": sources}
+  return [{
+      "id": cid,
+      "label": by_id[cid].filename,
+      "url": f"https://drive.google.com/file/d/{by_id[cid].drive_file_id}/view"
+  } for cid in cited_ids if cid in by_id]
 
 
 def answer_question(question):
   context, chunks = create_context(question)
   prompt = create_prompt(context, question)
   answer = create_response(prompt)
-
-  cited_ids = list(set(int(x) for x in re.findall(r'\[(\d+)\]', answer)))
+  answer = normalize_citations(answer)
+  cited_ids = extract_cited_ids(answer)
+  sources = build_sources(chunks, cited_ids)
 
   return {
-      "answer":
-      answer,
-      "sources": [{
-          "id": c.id,
-          "href": f"https://drive.google.com/file/d/{c.drive_file_id}/view",
-          "label": c.filename,
-      } for c in chunks.values() if c.id in cited_ids]
+      "answer": answer,
+      "sources": sources,
+      "citations": cited_ids,
   }
