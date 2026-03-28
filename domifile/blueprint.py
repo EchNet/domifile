@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request, g
 
 def install_blueprint(app):
   #from auth.decorators import require_auth
-  from domifile.search.search import answer_question
+  from domifile.query import answer_question
 
   bp = Blueprint("domifile", __name__, url_prefix="/api")
 

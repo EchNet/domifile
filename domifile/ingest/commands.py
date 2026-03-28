@@ -1,26 +1,53 @@
 # domifile/ingest/commands.py
-import click
-from flask.cli import with_appcontext
 
-from .ingester import Ingester
+import click
+import logging
+from flask.cli import with_appcontext
 
 
 def install_ingest_commands(app):
 
-  DRIVE_FOLDER_ID = "1sUY1cB2GThDFRx9D7rIFLZklRssojm7m"
-  #DRIVE_FOLDER_ID = "1ZFgdI25w87_nWt0rELtjU51QMTpaBx0o"
+  from domifile.ingest.service import IngestService
 
-  @click.command("run-ingest")
-  @click.argument("drive_folder_ids", nargs=-1)
+  class DebugModuleFilter(logging.Filter):
+
+    def __init__(self, modules):
+      super().__init__()
+      self.modules = modules
+
+    def filter(self, record):
+      # allow DEBUG only for selected modules
+      if record.levelno >= logging.WARNING:
+        return True
+      if record.levelno >= logging.DEBUG:
+        return any(record.name.startswith(m) for m in self.modules)
+      return False
+
+  def configure_logging():
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)  # accept everything, filter decides
+
+    handler.addFilter(DebugModuleFilter([
+        "domifile.ingest",
+    ]))
+
+    formatter = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
+    handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.handlers = [handler]
+
+    logging.getLogger("pdfminer").setLevel(logging.ERROR)
+
+  @click.command("ingest-drive")
+  @click.argument("root_file_id")
   @with_appcontext
-  def run_ingest(drive_folder_ids):
-    if not drive_folder_ids:
-      drive_folder_ids = [DRIVE_FOLDER_ID]
+  def ingest_drive_command(root_file_id):
+    """Traverse a Google Drive folder/file hierarchy and ingest all contents."""
+    configure_logging()
+    ingest_service = IngestService()
+    ingest_service.ingest_drive_hierarchy(root_file_id)
+    ingest_service.close()
 
-    try:
-      for dfi in drive_folder_ids:
-        Ingester().ingest_from_drive(dfi)
-    except Exception as e:
-      print(f"❌ Error: {e}", flush=True)
-
-  app.cli.add_command(run_ingest)
+  app.cli.add_command(ingest_drive_command)

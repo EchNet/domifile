@@ -3,6 +3,7 @@
 import io
 import logging
 from googleapiclient.http import MediaIoBaseDownload
+from pathlib import Path
 
 from .types import DriveFile
 from .errors import http_error_handling
@@ -21,27 +22,38 @@ class _DriveRetrieveMixin:
       f = self.drive_service.files().get(fileId=file_id, fields=DriveFile.FIELDS_SPEC).execute()
       return DriveFile(f)
 
-  def download_file(self, file_id, output_path):
+  def download_file(self, file, *, tmpdir, export_mime_type=None):
     """
       Download a file from Google Drive.
       
       Args:
-          file_id (str): The ID of the Google Drive file.
-          output_path (str): Local path to save the downloaded file.
+          file (DriveFile): The Google Drive file.
+          tmpdir (str): Path name of local temp directory.
+          export_mime_type (str): Target mime type, if exporting
       
       Returns:
           str: Path to the downloaded file.
     """
-    with http_error_handling(f"Download file {file_id}"):
-      request = self.drive_service.files().get_media(fileId=file_id)
-      with io.FileIO(output_path, "wb") as file:
-        downloader = MediaIoBaseDownload(file, request)
+    logger.debug(f"download_file {file.id} {file.name} {tmpdir}")
+    with http_error_handling(f"Download file {file.id}"):
+      if export_mime_type:
+        request = self.drive_service.files().export_media(fileId=file.id,
+                                                          mimeType=export_mime_type)
+        ext = file.name.rsplit('.', 1)[-1] if '.' in file.name else ''
+      else:
+        request = self.drive_service.files().get_media(fileId=file.id)
+        ext = ""
+
+      output_path = Path(tmpdir) / f"{file.id}{'.' if ext else ''}{ext}"
+
+      with io.FileIO(output_path, "wb") as f:
+        downloader = MediaIoBaseDownload(f, request)
         done = False
         while not done:
           status, done = downloader.next_chunk()
           if status:
-            logger.debug(f"Downloading {file_id} progress: {int(status.progress() * 100)}%")
+            logger.debug(f"Downloading {file.id} progress: {int(status.progress() * 100)}%")
 
-    return output_path
+    return str(output_path)
 
     # TODO: balk at files that are beyond a certain size

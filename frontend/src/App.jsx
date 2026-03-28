@@ -40,14 +40,13 @@ export default function App() {
         .filter(Boolean);
 
       return (
-        <sup key={i} className="ml-1 space-x-1">
+        <span key={i} className="ml-1 space-x-1">
           {ids.map((id, n) => {
             const source = sources.find((s) => s.id === id);
             if (!source) return null;
 
             return (
               <>
-                {n > 0 ? ", " : ""}
                 <a
                   key={id}
                   href={source.url}
@@ -55,12 +54,12 @@ export default function App() {
                   rel="noreferrer"
                   className="text-teal-600 hover:underline"
                 >
-                  {id}
+                  {n > 0 ? ", " : "["}{id}{n == ids.length-1 ? "]" : ""}
                 </a>
               </>
             );
           })}
-        </sup>
+        </span>
       );
     });
   }
@@ -122,7 +121,7 @@ export default function App() {
                   rel="noreferrer"
                   className="hover:underline text-teal-600"
                 >
-                  {s.label}
+                  [{s.id}] {s.label}
                 </a>
               </div>
             ))}

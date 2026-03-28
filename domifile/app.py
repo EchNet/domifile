@@ -78,12 +78,12 @@ class AppBuilder:
 
     from .db.commands import install_db_commands
     from .ingest.commands import install_ingest_commands
-    from .search.commands import install_search_commands
+    #from .search.commands import install_search_commands
     from .cli import patch_cli
 
     install_db_commands(self.app)
     install_ingest_commands(self.app)
-    install_search_commands(self.app)
+    #install_search_commands(self.app)
     patch_cli(self.app)
 
     return self
