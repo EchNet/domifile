@@ -2,7 +2,7 @@
 
 from datetime import datetime, date
 from sqlalchemy import (Integer, String, Text, ForeignKey, DateTime, Date, Float, Numeric, JSON)
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
 
@@ -44,6 +44,23 @@ class Document(Base):
   # flexible metadata (vendor, unit, etc.)
   attributes: Mapped[dict | None] = mapped_column(JSON)
 
+  # document.chunks
+  chunks: Mapped[list["Chunk"]] = relationship(back_populates="document",
+                                               cascade="all, delete-orphan")
+
+  def to_dict(self):
+    return {
+        "id": self.id,
+        "drive_file_id": self.drive_file_id,
+        "filename": self.filename,
+        "mime_type": self.mime_type,
+        "drive_modified_time": str(self.drive_modified_time),
+        "ingested_at": str(self.ingested_at),
+        "text": self.text,
+        "doc_type": self.doc_type,
+        "doc_type_confidence": self.doc_type_confidence,
+    }
+
 
 # -------------------------
 # Chunks (RAG)
@@ -67,6 +84,8 @@ class Chunk(Base):
   document_date: Mapped[date | None] = mapped_column(Date)
   coverage_start: Mapped[date | None] = mapped_column(Date)
   coverage_end: Mapped[date | None] = mapped_column(Date)
+
+  document: Mapped["Document"] = relationship(back_populates="chunks")
 
 
 # -------------------------

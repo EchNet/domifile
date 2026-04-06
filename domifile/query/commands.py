@@ -1,17 +1,18 @@
-# domifile/search/commands.py
+# domifile/query/commands.py
 import click
 import json
 from flask.cli import with_appcontext
 
 
-def install_search_commands(app):
+def install_query_commands(app):
 
-  from .search import answer_question
+  from . import answer_question
 
   @click.command("answer-question")
   @click.argument("question")
   @with_appcontext
   def answer_the_question(question):
+    """ Answer a question based on knowledge base. """
     result = answer_question(question)
     print(json.dumps(result, indent=3))
 

@@ -9,9 +9,6 @@ from pdfminer.high_level import extract_text as pdf_extract_text
 class TextExtractor:
   """ Responsible for extracting text from documents of various types. """
 
-  class Error(Exception):
-    pass
-
   def __init__(self, drive_service, drive_file):
     self.drive_service = drive_service
     self.drive_file = drive_file
@@ -23,7 +20,7 @@ class TextExtractor:
     export_mime_type = self._get_export_mime_type(mime_type)
     extract_func = self._get_extract_func(mime_type)
     if not extract_func:
-      raise self.Error(f"Unsupported mime type: {mime_type}")
+      raise ValueError(f"Unsupported mime type: {mime_type}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
       path = self.drive_service.download_file(self.drive_file,

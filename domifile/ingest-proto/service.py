@@ -2,11 +2,16 @@
 import logging
 from datetime import datetime
 
+from domifile.db.registry import DatabaseRegistry
+from domifile.models import Document
 from domifile.drive import DriveService
 from domifile.drive.traverse import DriveFileHierarchy, DriveFileVisitor
 from domifile.ingest.text import TextExtractor
-from domifile.ingest.helpers import DocumentHelper, DocumentFinder
-from domifile.ingest.analyzer import DocumentAnalyzer
+from domifile.ingest.helpers import DocumentHelper
+from domifile.ingest.chunker import create_chunks
+from domifile.ingest.temporal import extract_temporal_profile
+from domifile.ingest.classifier import classify_document
+from domifile.ingest.facts import extract_facts
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +39,9 @@ class _IngestVisitor(DriveFileVisitor):
 class IngestService:
   """ """
 
-  def __init__(self, *, db_session, drive_service=None):
-    self.db_session = db_session
+  def __init__(self, *, drive_service=None):
     self.drive_service = drive_service or DriveService()
+    self.db_session = DatabaseRegistry.instance().session_for(Document)
 
   def ingest_drive_hierarchy(self, root_file_id):
     """ MAIN ENTRY POINT """
@@ -53,13 +58,11 @@ class IngestService:
     """ Ingest one file.  May not be a folder. """
     try:
       # Query for existing document.
-      document = DocumentFinder(db_session=self.db_session).document_for_drive_file(drive_file)
-      document_helper = DocumentHelper(db_session=self.db_session,
-                                       document=document,
-                                       drive_file=drive_file)
+      document_helper = DocumentHelper(self.db_session)
+      document = document_helper.document_for_drive_file(drive_file)
 
-      # If document is already ingested and up to date, skip.
-      if document_helper.document_is_up_to_date():
+      # If document is already ingested, skip.
+      if document_helper.document_is_up_to_date(document, drive_file):
         logger.debug(f"  → already up to date")
         return
 
@@ -67,31 +70,24 @@ class IngestService:
       logger.error(f"  → loading")
       try:
         text = TextExtractor(self.drive_service, drive_file).extract_text()
-        if text:
-          text = text.strip()
-        if not text:
-          logger.debug(f"  → empty text")
-      except TextExtractor.Error as e:
-        logger.debug(f"  → {str(e)}")
-        text = None
-
+      except ValueError as e:
+        logger.debug(f"  → skipped - {str(e)}")
+        return
       if text is None or not text.strip():
+        logger.debug(f"  → skipped - empty text")
         return
 
       # Ensure document exists, clear ingested fields.
-      document = document_helper.open_document_for_ingest(text)
-      if document.id:
-        document_helper.delete_all_chunks(document)
+      document = document_helper.open_document_for_ingest(document, drive_file, text)
+      self.db_session.flush()  # Create document ID
+      document_helper.delete_all_chunks(document)
 
-      if text:
-        self.db_session.flush()  # Make document ID visible to session.
-        document_helper.create_chunks()
-        self.db_session.flush()  # Make chunks visible to session.
-        # Analyze document for type.
-        doc_analyzer = DocumentAnalyzer(document)
-        analysis = doc_analyzer.analyze_document()
-
-      # Finish.
+      # Run extractors.
+      logger.error(f"  → extracting")
+      create_chunks(self.db_session, document)
+      classify_document(document)
+      extract_temporal_profile(document)
+      extract_facts(self.db_session, document)
       document.ingested_at = datetime.utcnow()
       self.db_session.commit()
       logger.debug(f"  → done.")

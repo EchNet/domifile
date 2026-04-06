@@ -4,14 +4,11 @@ from flask.cli import with_appcontext
 
 
 def install_ingest_commands(app):
+
+  from domifile.db.registry import DatabaseRegistry
   from domifile.ingest.helpers import DocumentHelper
   from domifile.ingest.service import IngestService
-
-  def create_db_session():
-    from domifile.db.registry import DatabaseRegistry
-    from domifile.models import Document
-
-    return DatabaseRegistry.instance().session_for(Document)
+  from domifile.models import Document
 
   class DebugModuleFilter(logging.Filter):
 
@@ -50,14 +47,13 @@ def install_ingest_commands(app):
   def ingest_drive_command(root_file_id):
     """Traverse a Google Drive folder/file hierarchy and ingest all contents."""
     configure_logging()
-    ingest_service = IngestService(db_session=create_db_session())
+    ingest_service = IngestService()
 
     m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", root_file_id)
     if m:
       root_file_id = m.group(1)
 
-    output = ingest_service.ingest_drive_hierarchy(root_file_id)
-    click.echo(json.dumps(output))
+    ingest_service.ingest_drive_hierarchy(root_file_id)
     ingest_service.close()
 
   app.cli.add_command(ingest_drive_command)
@@ -73,7 +69,8 @@ def install_ingest_commands(app):
     if m:
       file_id = m.group(1)
 
-    document_helper = DocumentHelper(db_session=create_db_session())
+    db_session = DatabaseRegistry.instance().session_for(Document)
+    document_helper = DocumentHelper(db_session)
     document = document_helper.document_for_drive_file_id(file_id)
     if not document:
       raise FileNotFoundError(file_id)

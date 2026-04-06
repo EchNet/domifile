@@ -1,0 +1,162 @@
+// ======================================================================
+// 1) Create the subscription
+// ======================================================================
+
+// subscribe-drive-hierarchy.js
+//
+// npm install googleapis
+//
+// Env:
+//   GOOGLE_OAUTH_ACCESS_TOKEN=...
+//   PUBSUB_TOPIC=projects/YOUR_PROJECT/topics/YOUR_TOPIC
+//   FOLDER_ID=...
+//
+// Notes:
+// - Targeting a folder uses the Drive resource name:
+//     //drive.googleapis.com/files/FOLDER_ID
+// - includeDescendants:true requires the target file to be a folder.
+// - Pub/Sub topic must be in the same Cloud project as the subscription.
+
+const {google} = require('googleapis');
+
+async function main() {
+  const accessToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
+  const pubsubTopic = process.env.PUBSUB_TOPIC;
+  const folderId = process.env.FOLDER_ID;
+
+  if (!accessToken || !pubsubTopic || !folderId) {
+    throw new Error('Missing GOOGLE_OAUTH_ACCESS_TOKEN, PUBSUB_TOPIC, or FOLDER_ID');
+  }
+
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+
+  const workspaceevents = google.workspaceevents({
+    version: 'v1beta',
+    auth,
+  });
+
+  const requestBody = {
+    targetResource: `//drive.googleapis.com/files/${folderId}`,
+    eventTypes: [
+      'google.workspace.drive.file.v3.created',
+      'google.workspace.drive.file.v3.contentChanged',
+    ],
+    notificationEndpoint: {
+      pubsubTopic,
+    },
+    payloadOptions: {
+      includeResource: true,
+      fieldMask: 'file.id,file.name,file.mimeType,file.parents,file.modifiedTime',
+    },
+    driveOptions: {
+      includeDescendants: true,
+    },
+    // Optional:
+    // ttl: '86400s'
+  };
+
+  const res = await workspaceevents.subscriptions.create({
+    requestBody,
+  });
+
+  console.log(JSON.stringify(res.data, null, 2));
+}
+
+main().catch(err => {
+  const detail = err?.response?.data || err;
+  console.error(JSON.stringify(detail, null, 2));
+  process.exit(1);
+});
+
+// ======================================================================
+// 2) Receive the Pub/Sub event and call your webhook
+// ======================================================================
+
+
+// server.js
+//
+// npm install express axios cloudevents
+//
+// Env:
+//   WEBHOOK_URL=https://your-app.example.com/drive-hook
+//
+// Pub/Sub push subscription should point to:
+//   POST /pubsub/drive-events
+
+const express = require('express');
+const axios = require('axios');
+const {HTTP} = require('cloudevents');
+
+const app = express();
+app.use(express.json({ limit: '2mb' }));
+
+app.post('/pubsub/drive-events', async (req, res) => {
+  try {
+    const pubsubMessage = req.body?.message;
+    if (!pubsubMessage) {
+      res.status(400).send('Missing Pub/Sub message');
+      return;
+    }
+
+    const attributes = pubsubMessage.attributes || {};
+    const rawData = pubsubMessage.data
+      ? Buffer.from(pubsubMessage.data, 'base64').toString('utf8')
+      : '{}';
+
+    let payload = {};
+    try {
+      payload = JSON.parse(rawData);
+    } catch {
+      payload = { rawData };
+    }
+
+    // Rebuild the original Drive CloudEvent from Pub/Sub attributes
+    const driveEvent = HTTP.toEvent({ headers: attributes });
+    const eventType = driveEvent.type;
+
+    // Resource data is present only if includeResource=true in the subscription
+    const file = payload.file || {};
+    const outgoing = {
+      eventType,
+      subscription: attributes['ce-subject'] || null,
+      fileId: file.id || null,
+      fileName: file.name || null,
+      mimeType: file.mimeType || null,
+      parents: file.parents || [],
+      modifiedTime: file.modifiedTime || null,
+      rawPayload: payload,
+    };
+
+    // Filter only the events you care about
+    if (
+      eventType === 'google.workspace.drive.file.v3.created' ||
+      eventType === 'google.workspace.drive.file.v3.contentChanged'
+    ) {
+      await axios.post(process.env.WEBHOOK_URL, outgoing, {
+        timeout: 10000,
+      });
+    }
+
+    // Ack Pub/Sub push
+    res.status(204).send();
+  } catch (err) {
+    console.error(err?.response?.data || err);
+    // Non-2xx tells Pub/Sub to retry
+    res.status(500).send('Error');
+  }
+});
+
+const port = process.env.PORT || 8080;
+app.listen(port, () => {
+  console.log(`Listening on ${port}`);
+});
+
+
+// ======================================================================
+// 3) Grant Pub/Sub publish permission to the Drive event publisher
+// ======================================================================
+
+gcloud pubsub topics add-iam-policy-binding YOUR_TOPIC \
+  --member="serviceAccount:drive-api-event-push@system.gserviceaccount.com" \
+  --role="roles/pubsub.publisher"

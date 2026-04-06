@@ -2,9 +2,10 @@
 from sqlalchemy import select, delete
 
 from domifile.models import Document, Chunk
+from domifile.openai_adapter import create_embedding
 
 
-class DocumentHelper:
+class DocumentFinder:
 
   def __init__(self, db_session):
     self.db_session = db_session
@@ -16,29 +17,50 @@ class DocumentHelper:
     return self.db_session.execute(
         select(Document).where(Document.drive_file_id == drive_file_id)).scalar_one_or_none()
 
-  @staticmethod
-  def document_is_up_to_date(document, drive_file):
-    return (document and document.ingested_at
-            and document.drive_modified_time == drive_file.modified_time)
 
-  def open_document_for_ingest(self, document, drive_file, text):
-    if document is None:
-      document = Document(
-          drive_file_id=drive_file.id,
-          filename=drive_file.name,
-          mime_type=drive_file.mime_type,
+class DocumentHelper:
+
+  def __init__(self, *, db_session, document, drive_file):
+    self.db_session = db_session
+    self.document = document  # may be None
+    self.drive_file = drive_file
+
+  def document_is_up_to_date(self):
+    return (self.document and self.document.ingested_at
+            and self.document.drive_modified_time == self.drive_file.modified_time)
+
+  def open_document_for_ingest(self, text):
+    if self.document is None:
+      self.document = Document(
+          drive_file_id=self.drive_file.id,
+          filename=self.drive_file.name,
+          mime_type=self.drive_file.mime_type,
       )
-    document.drive_modified_time = drive_file.modified_time
-    document.ingested_at = None
-    document.text = text
-    document.doc_type = None
-    document.doc_type_confidence = None
-    document.document_date = None
-    document.coverage_start = None
-    document.coverage_end = None
-    document.attributes = None
-    self.db_session.add(document)
-    return document
+    self.document.drive_modified_time = self.drive_file.modified_time
+    self.document.ingested_at = None
+    self.document.text = text
+    self.document.doc_type = None
+    self.document.doc_type_confidence = None
+    self.document.document_date = None
+    self.document.coverage_start = None
+    self.document.coverage_end = None
+    self.document.attributes = None
+    self.db_session.add(self.document)
+    return self.document
 
-  def delete_all_chunks(self, document):
-    self.db_session.execute(delete(Chunk).where(Chunk.document_id == document.id))
+  def delete_all_chunks(self):
+    self.db_session.execute(delete(Chunk).where(Chunk.document_id == self.document.id))
+
+  def create_chunks(self):
+
+    def chunk_text(text, size=300, extra=30):
+      for i in range(0, len(text), size):
+        yield text[i:i + size]
+
+    for chunk_text_block in chunk_text(self.document.text):
+      chunk = Chunk(
+          document_id=self.document.id,
+          text=chunk_text_block,
+          embedding=create_embedding(chunk_text_block),
+      )
+      self.db_session.add(chunk)
