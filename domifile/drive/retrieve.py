@@ -18,7 +18,7 @@ class _DriveRetrieveMixin:
 
   def get(self, file_id):
     """ Fetch file metadata by file ID. """
-    with http_error_handling(f"Retrieve file metadata {file_id}"):
+    with http_error_handling(f"Retrieving file metadata: {file_id}"):
       f = self.drive_service.files().get(fileId=file_id, fields=DriveFile.FIELDS_SPEC).execute()
       return DriveFile(f)
 

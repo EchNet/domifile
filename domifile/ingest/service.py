@@ -11,50 +11,51 @@ from domifile.ingest.analyzer import DocumentAnalyzer
 logger = logging.getLogger(__name__)
 
 
-class _IngestVisitor(DriveFileVisitor):
-
-  def __init__(self, service):
-    self.service = service
-
-  def open_drive_folder(self, folder):
-    logger.debug(f"[FOLDER OPEN] {folder.name} ({folder.id})")
-
-  def visit_drive_file(self, file):
-    logger.debug(f"[FILE] {file.name} ({file.id})")
-    try:
-      self.service.ingest_drive_file(file)
-    except Exception as e:
-      logger.error(f"  → ERROR: {e}")
-      raise
-
-  def close_drive_folder(self, folder):
-    logger.debug(f"[FOLDER CLOSE] {folder.name} ({folder.id})")
-
-
 class IngestService:
   """ """
 
-  def __init__(self, *, db_session, drive_service=None):
-    self.db_session = db_session
+  def __init__(self, *, drive_service=None):
+    """ """
     self.drive_service = drive_service or DriveService()
 
   def ingest_drive_hierarchy(self, root_file_id):
     """ MAIN ENTRY POINT """
 
-    hierarchy = DriveFileHierarchy(visitor=_IngestVisitor(self))
-    try:
-      logger.debug(f"[Ingest start] {root_file_id}")
-      hierarchy.traverse(root_file_id)
-      logger.debug(f"[Ingest complete] {root_file_id}")
-    except Exception as e:
-      logger.exception("FATAL ERROR")
+    class _IngestVisitor(DriveFileVisitor):
+
+      def __init__(self, service):
+        self.service = service
+        self.folder_stack = []
+
+      def open_drive_folder(self, folder):
+        self.folder_stack.append(folder.name)
+
+      def visit_drive_file(self, file):
+        logger.debug(f"[FILE] {'/'.join(self.folder_stack + [file.name])} ({file.id})")
+        self.service.ingest_drive_file(file)
+
+      def close_drive_folder(self, folder):
+        self.folder_stack = self.folder_stack[0:-1]
+
+    logger.debug(f"[Ingest start] {root_file_id}")
+    visitor = _IngestVisitor(self)
+    DriveFileHierarchy(visitor=visitor).traverse(root_file_id)
+    logger.debug(f"[Ingest complete] {root_file_id}")
+
+  @staticmethod
+  def _create_db_session():
+    from domifile.db.registry import DatabaseRegistry
+    from domifile.models import Document
+
+    return DatabaseRegistry.instance().session_for(Document)
 
   def ingest_drive_file(self, drive_file):
     """ Ingest one file.  May not be a folder. """
+    db_session = self._create_db_session()
     try:
       # Query for existing document.
-      document = DocumentFinder(db_session=self.db_session).document_for_drive_file(drive_file)
-      document_helper = DocumentHelper(db_session=self.db_session,
+      document = DocumentFinder(db_session=db_session).document_for_drive_file(drive_file)
+      document_helper = DocumentHelper(db_session=db_session,
                                        document=document,
                                        drive_file=drive_file)
 
@@ -67,43 +68,63 @@ class IngestService:
       logger.error(f"  → loading")
       try:
         text = TextExtractor(self.drive_service, drive_file).extract_text()
-        if text:
-          text = text.strip()
-        if not text:
-          logger.debug(f"  → empty text")
-      except TextExtractor.Error as e:
+        text = (text or "").strip()
+        logger.debug(f"  → \"{text[0:40]}{'...' if len(text) > 40 else ''}\"")
+      except TextExtractor.Error as e:  # Usually unsupported MIME type
+        text = ""
         logger.debug(f"  → {str(e)}")
-        text = None
-
-      if text is None or not text.strip():
-        return
 
       # Ensure document exists, clear ingested fields.
-      document = document_helper.open_document_for_ingest(text)
-      if document.id:
-        document_helper.delete_all_chunks(document)
+      document = document_helper.open_document_for_ingest(text, TextExtractor.VERSION)
+      if document.id:  # Document already exists.
+        document_helper.delete_all_chunks()
 
       if text:
-        self.db_session.flush()  # Make document ID visible to session.
+        db_session.flush()  # Make document ID visible to session.
         document_helper.create_chunks()
-        self.db_session.flush()  # Make chunks visible to session.
+        db_session.flush()  # Make chunks visible to session.
         # Analyze document for type.
         doc_analyzer = DocumentAnalyzer(document)
         analysis = doc_analyzer.analyze_document()
 
       # Finish.
       document.ingested_at = datetime.utcnow()
-      self.db_session.commit()
+      db_session.commit()
       logger.debug(f"  → done.")
     except Exception as e:
-      self.db_session.rollback()
+      db_session.rollback()
       raise
+    finally:
+      db_session.close()
 
-  def close(self):
-    db_session = self.db_session
-    self.db_session = None
-    if db_session:
-      try:
-        db_session.close()
-      except Exception as e:
-        pass
+  def clear_drive_hierarchy(self, root_file_id):
+    """
+      Remove all extracted information for the given drive hierarchy.
+    """
+
+    class _ClearIngestVisitor(DriveFileVisitor):
+
+      def __init__(self, db_session):
+        self.db_session = db_session
+        self.count = 0
+
+      def visit_drive_file(self, file):
+        document = DocumentFinder(db_session=self.db_session).document_for_drive_file(file)
+        if document:
+          self.db_session.delete(document)
+          self.db_session.commit()
+          self.count += 1
+
+    db_session = self._create_db_session()
+    try:
+      visitor = _ClearIngestVisitor(db_session)
+      logger.debug(f"[CLEAR start] {root_file_id}")
+      hierarchy = DriveFileHierarchy(visitor=visitor)
+      hierarchy.traverse(root_file_id)
+      logger.debug(f"[CLEAR complete] {root_file_id}")
+      return visitor.count
+    except Exception as e:
+      db_session.rollback()
+      raise
+    finally:
+      db_session.close()

@@ -4,14 +4,20 @@ from flask.cli import with_appcontext
 
 
 def install_ingest_commands(app):
-  from domifile.ingest.helpers import DocumentHelper
+  from domifile.ingest.helpers import DocumentFinder
   from domifile.ingest.service import IngestService
 
-  def create_db_session():
-    from domifile.db.registry import DatabaseRegistry
-    from domifile.models import Document
-
-    return DatabaseRegistry.instance().session_for(Document)
+  def normalize_file_id(file_id):
+    patterns = [
+        r"/file/d/([a-zA-Z0-9_-]+)",
+        r"/folders/([a-zA-Z0-9_-]+)",
+        r"[?&]id=([a-zA-Z0-9_-]+)",
+    ]
+    for p in patterns:
+      m = re.search(p, file_id)
+      if m:
+        return m.group(1)
+    return file_id
 
   class DebugModuleFilter(logging.Filter):
 
@@ -50,34 +56,42 @@ def install_ingest_commands(app):
   def ingest_drive_command(root_file_id):
     """Traverse a Google Drive folder/file hierarchy and ingest all contents."""
     configure_logging()
-    ingest_service = IngestService(db_session=create_db_session())
 
-    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", root_file_id)
-    if m:
-      root_file_id = m.group(1)
+    root_file_id = normalize_file_id(root_file_id)
 
-    output = ingest_service.ingest_drive_hierarchy(root_file_id)
+    output = IngestService().ingest_drive_hierarchy(root_file_id)
     click.echo(json.dumps(output))
     ingest_service.close()
 
   app.cli.add_command(ingest_drive_command)
 
-  @click.command("examine-post-ingest")
+  @click.command("examine-drive-file")
   @click.argument("file_id")
   @with_appcontext
-  def examine_post_ingest(file_id):
+  def examine_drive_file(file_id):
     """ Examine the outcome of ingesting a file. """
     configure_logging()
 
-    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", file_id)
-    if m:
-      file_id = m.group(1)
-
-    document_helper = DocumentHelper(db_session=create_db_session())
-    document = document_helper.document_for_drive_file_id(file_id)
+    file_id = normalize_file_id(file_id)
+    db_session = create_db_session()
+    document = DocumentFinder(db_session=db_session).document_for_drive_file_id(file_id)
     if not document:
-      raise FileNotFoundError(file_id)
+      click.echo(f"No info for {file_id}")
+    else:
+      click.echo(json.dumps(document.to_dict(), indent=2))
 
-    click.echo(json.dumps(document.to_dict()))
+  app.cli.add_command(examine_drive_file)
 
-  app.cli.add_command(examine_post_ingest)
+  @click.command("clear-ingest-drive")
+  @click.argument("root_file_id")
+  @with_appcontext
+  def clear_ingest_drive(root_file_id):
+    """Traverse a Google Drive folder/file hierarchy and clear all ingested content."""
+    configure_logging()
+    ingest_service = IngestService(db_session=create_db_session())
+    root_file_id = normalize_file_id(root_file_id)
+    count = ingest_service.clear_drive_hierarchy(root_file_id)
+    click.echo(f"Done. Cleared {count}.")
+    ingest_service.close()
+
+  app.cli.add_command(clear_ingest_drive)

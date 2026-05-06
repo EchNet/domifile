@@ -8,6 +8,7 @@ from pdfminer.high_level import extract_text as pdf_extract_text
 
 class TextExtractor:
   """ Responsible for extracting text from documents of various types. """
+  VERSION = "1.0"
 
   class Error(Exception):
     pass

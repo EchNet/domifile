@@ -7,12 +7,11 @@ DOC_TYPES = {
     PROPERTY_MANAGEMENT: {
         "meeting_agenda": {
             "description": """
-        Document outlining the planned topics, order of discussion, and time
-        allocations for a board or association meeting. Typically prepared
-        in advance and may include references to supporting materials.
-      """,
+                Document outlining the planned topics, order of discussion, and time
+                allocations for a board or association meeting. Typically prepared
+                in advance and may include references to supporting materials.""",
             "facts": {
-                "meeting_date": "date"
+                "event_date": "date"
             },
             "attributes": {
                 "meeting_type": "board | annual | special | budget | committee",
@@ -22,12 +21,12 @@ DOC_TYPES = {
         },
         "meeting_minutes": {
             "description": """
-        Official record of a meeting, capturing attendees, motions,
-        decisions, votes, and key discussions. Serves as the authoritative
-        historical record of board actions.
-      """,
+                Official record of a meeting, capturing attendees, motions,
+                decisions, votes, and key discussions. Serves as the authoritative
+                historical record of board actions.""",
             "facts": {
-                "meeting_date": "date"
+                "event_date": "date",
+                "document_date": "date"
             },
             "attributes": {
                 "meeting_type": "board | annual | special | budget | committee",
@@ -37,12 +36,11 @@ DOC_TYPES = {
         },
         "proposal": {
             "description": """
-        Estimate or offer from a vendor describing proposed work, scope,
-        materials, timeline, and cost. May precede contract execution and
-        is often used for bid comparison.
-      """,
+                Estimate or offer from a vendor describing proposed work, scope,
+                materials, timeline, and cost. May precede contract execution and
+                is often used for bid comparison.""",
             "facts": {
-                "proposal_date": "date",
+                "document_date": "date",
                 "total_amount": "money"
             },
             "attributes": {
@@ -55,12 +53,11 @@ DOC_TYPES = {
         },
         "invoice": {
             "description": """
-        Request for payment issued by a vendor for goods or services
-        provided. Includes line items, service dates, amounts due,
-        and payment terms.
-      """,
+                Request for payment issued by a vendor for goods or services
+                provided. Includes line items, service dates, amounts due,
+                and payment terms.""",
             "facts": {
-                "invoice_date": "date",
+                "document_date": "date",
                 "due_date": "date",
                 "service_date": "date",
                 "total_amount": "money"
@@ -75,11 +72,10 @@ DOC_TYPES = {
         },
         "receipt": {
             "description": """
-        Proof of payment for a completed transaction. Typically includes
-        amount paid, payment method, date, and payee.
-      """,
+                Proof of payment for a completed transaction. Typically includes
+                amount paid, payment method, date, and payee.""",
             "facts": {
-                "payment_date": "date",
+                "document_date": "date",
                 "total_amount": "money"
             },
             "attributes": {
@@ -94,10 +90,9 @@ DOC_TYPES = {
         "vendor_contract": {
             "description": """
         Executed agreement between the association and a vendor defining
-        scope of work, pricing, duration, responsibilities, and legal terms.
-      """,
+        scope of work, pricing, duration, responsibilities, and legal terms.""",
             "facts": {
-                "contract_date": "date",
+                "document_date": "date",
                 "effective_date": "date",
                 "expiration_date": "date",
                 "total_amount": "money"
@@ -112,10 +107,9 @@ DOC_TYPES = {
         },
         "vendor_insurance": {
             "description": """
-        Certificate of insurance or related documentation provided by a
-        vendor, demonstrating coverage (e.g., liability, workers’ comp)
-        during the term of work performed for the association.
-      """,
+                Certificate of insurance or related documentation provided by a
+                vendor, demonstrating coverage (e.g., liability, workers’ comp)
+                during the term of work performed for the association.""",
             "facts": {
                 "effective_date": "date",
                 "expiration_date": "date"
@@ -129,13 +123,12 @@ DOC_TYPES = {
         },
         "utility_bill": {
             "description": """
-        Statement from a utility provider (e.g., water, electricity, gas,
-        sewer) showing usage, billing period, and amount due.
-      """,
+                Statement from a utility provider (e.g., water, electricity, gas,
+                sewer) showing usage, billing period, and amount due.""",
             "facts": {
-                "statement_date": "date",
-                "coverage_start": "date",
-                "coverage_end": "date",
+                "document_date": "date",
+                "date_range_start": "date",
+                "date_range_end": "date",
                 "due_date": "date",
                 "total_amount": "money"
             },
@@ -148,10 +141,9 @@ DOC_TYPES = {
         },
         "insurance_policy": {
             "description": """
-        Formal insurance document describing coverage terms, limits,
-        deductibles, effective dates, and insured parties for the property
-        or association.
-      """,
+                Formal insurance document describing coverage terms, limits,
+                deductibles, effective dates, and insured parties for the property
+                or association.""",
             "facts": {
                 "effective_date": "date",
                 "expiration_date": "date",
@@ -167,11 +159,10 @@ DOC_TYPES = {
         },
         "assessment_notice": {
             "description": """
-        Notice to owners regarding required payments (regular dues or
-        special assessments), including amount, due date, and purpose.
-      """,
+                Notice to owners regarding required payments (regular dues or
+                special assessments), including amount, due date, and purpose.""",
             "facts": {
-                "notice_date": "date",
+                "document_date": "date",
                 "due_date": "date",
                 "total_amount": "money"
             },
@@ -184,10 +175,9 @@ DOC_TYPES = {
         },
         "violation_notice": {
             "description": """
-        Notification to an owner or occupant identifying a violation of
-        bylaws, rules, or regulations, often including required corrective
-        action and deadline.
-      """,
+                Notification to an owner or occupant identifying a violation of
+                bylaws, rules, or regulations, often including required corrective
+                action and deadline.""",
             "facts": {
                 "notice_date": "date",
                 "cure_deadline": "date"
@@ -202,13 +192,13 @@ DOC_TYPES = {
         },
         "bank_statement": {
             "description": """
-        Bank statement.
-      """,
+                Bank statement.""",
             "facts": {
-                "statement_date": "date",
-                "coverage_start": "date",
-                "coverage_end": "date",
-                "ending_balance": "money"
+                "document_date": "date",
+                "date_range_start": "date",
+                "date_range_end": "date",
+                "ending_balance": "money",
+                "transactions": "list of (money, description)"
             },
             "attributes": {
                 "bank": "string",
@@ -218,12 +208,11 @@ DOC_TYPES = {
         },
         "reserve_study": {
             "description": """
-        Long-term financial planning document analyzing capital components
-        (e.g., roofs, paving) and forecasting funding requirements to
-        maintain reserves and avoid special assessments.
-      """,
+                Long-term financial planning document analyzing capital components
+                (e.g., roofs, paving) and forecasting funding requirements to
+                maintain reserves and avoid special assessments.""",
             "facts": {
-                "study_date": "date"
+                "document_date": "date"
             },
             "attributes": {
                 "prepared_by": "string",
@@ -233,11 +222,10 @@ DOC_TYPES = {
         },
         "municipal_notice": {
             "description": """
-        Notice from the city or town regarding safety, infrastructure, utilities,
-        regulations, inspections, or public works affecting the property.
-      """,
+                Notice from the city or town regarding safety, infrastructure, utilities,
+                regulations, inspections, or public works affecting the property.""",
             "facts": {
-                "notice_date": "date",
+                "document_date": "date",
                 "effective_date": "date",
                 "deadline": "date"
             },
@@ -250,12 +238,11 @@ DOC_TYPES = {
         },
         "newsletter": {
             "description": """
-        Periodical communication from board of trustees / management company
-        to the occupants and property owners, including updates, reminders,
-        and community information.
-      """,
+                Periodical communication from board of trustees / management company
+                to the occupants and property owners, including updates, reminders,
+                and community information.""",
             "facts": {
-                "publication_date": "date"
+                "document_date": "date"
             },
             "attributes": {
                 "periodicity": "monthly | quarterly | annual | ad_hoc",
@@ -265,11 +252,10 @@ DOC_TYPES = {
         },
         "owner_communication": {
             "description": """
-        E.g., emails from owners, letters, contact form submissions,
-        complaints, requests, ...
-      """,
+                Written statements from owners expressing complaints,
+                requests, questions, or other information""",
             "facts": {
-                "communication_date": "date"
+                "document_date": "date"
             },
             "attributes": {
                 "channel": "email | letter | portal",
@@ -277,6 +263,15 @@ DOC_TYPES = {
                 "sender": "owner name | unit number",
                 "urgency": "low | normal | high"
             }
+        },
+        "contact_info": {
+            "description": """
+                Homeowner lists, resident/tenant lists, contact information
+                for vendors and services, emergency phone numbers, ...""",
+            "facts": {
+                "document_date": "date"
+            },
+            "attributes": {}
         },
     }
 }

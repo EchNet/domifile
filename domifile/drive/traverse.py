@@ -6,7 +6,6 @@ from .service import DriveService
 
 class DriveFileVisitor(ABC):
 
-  @abstractmethod
   def open_drive_folder(self, folder):
     pass
 
@@ -14,7 +13,6 @@ class DriveFileVisitor(ABC):
   def visit_drive_file(self, file):
     pass
 
-  @abstractmethod
   def close_drive_folder(self, folder):
     pass
 
