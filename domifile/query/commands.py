@@ -3,17 +3,17 @@ import click
 import json
 from flask.cli import with_appcontext
 
+from .service import QueryService
+
 
 def install_query_commands(app):
-
-  from . import answer_question
 
   @click.command("answer-question")
   @click.argument("question")
   @with_appcontext
-  def answer_the_question(question):
+  def answer_question(question):
     """ Answer a question based on knowledge base. """
-    result = answer_question(question)
+    result = QueryService().answer_question(question)
     print(json.dumps(result, indent=3))
 
-  app.cli.add_command(answer_the_question)
+  app.cli.add_command(answer_question)

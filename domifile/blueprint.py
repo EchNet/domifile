@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request, g
 
 def install_blueprint(app):
   #from auth.decorators import require_auth
-  from domifile.query import answer_question
+  from domifile.query.service import QueryService
 
   bp = Blueprint("domifile", __name__, url_prefix="/api")
 
@@ -39,7 +39,7 @@ def install_blueprint(app):
     if not question:
       return jsonify(error="Missing question"), 400
 
-    answer = answer_question(question)
+    answer = QueryService.answer_question(question)
 
     return jsonify(answer)
 

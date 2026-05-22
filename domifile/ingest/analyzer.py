@@ -5,20 +5,9 @@ import re
 from datetime import datetime
 
 from domifile.openai_adapter import create_response
-from .prompts.doctype_prompt import build_doctype_prompt
-from .prompts.temporal_prompt import build_temporal_prompt
+from .. import prompts
 
 logger = logging.getLogger(__name__)
-
-
-def parse_llm_json(text: str) -> dict:
-  text = text.strip()
-  # Remove ```json ... ``` or ``` ... ```
-  match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
-  if match:
-    text = match.group(1).strip()
-
-  return json.loads(text)
 
 
 class DocumentAnalyzer:
@@ -54,11 +43,9 @@ class DocumentAnalyzer:
   def _analyze_for_doc_type(self):
     """ Step 1 of analysis: guess at document type """
 
-    # Generate prompt.
-    prompt = build_doctype_prompt(self.document.filename, self.document.text)
-
     # Run the AI
-    analysis = create_response(prompt)
+    analysis = prompts.DoctypePrompt().run(filename=self.document.filename,
+                                           document_text=self.document.text)
     logger.debug(analysis)
 
     # Save results in Document object.
@@ -69,11 +56,10 @@ class DocumentAnalyzer:
   def _analyze_for_temporal_profile(self, doc_type):
     """ Step 2 of analysis: pick out dates """
 
-    # Generate prompt.
-    prompt = build_temporal_prompt(self.document.filename, self.document.text, doc_type)
-
     # Run the AI
-    analysis = create_response(prompt)
+    analysis = TemporalProfilePrompt().run(filename=self.document.filename,
+                                           document_text=self.document.text,
+                                           doc_type=doc_type)
     logger.debug(analysis)
 
     # Save results in Document object.

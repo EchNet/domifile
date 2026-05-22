@@ -1,4 +1,3 @@
-# domifile/query/rag.py
 import logging
 import json
 import numpy as np
@@ -7,6 +6,29 @@ from datetime import date
 from sqlalchemy import text
 
 from ..openai_adapter import create_embedding, create_response
+
+
+def create_planner_prompt(question: str) -> str:
+  return (f"""
+Expand the user question into 4 short search queries.  The domain is property management.
+
+Rules:
+- short phrases
+- no punctuation
+- no full sentences
+- capture different ways the info may appear
+
+Question:
+{question}
+""")
+
+
+def plan_queries(question: str) -> list[str]:
+  prompt = create_planner_prompt(question)
+  output_text = create_response(prompt)
+  lines = output_text.strip().split("\n")
+  queries = [l.strip("- ").strip() for l in lines if l.strip() and len(l.strip()) > 3]
+  return queries[:4]
 
 
 def fetch_relevant_chunks(qvec):
@@ -66,15 +88,19 @@ def mmr(query_vec, rows, k=4, lambda_=0.7):
 
 
 def select_chunks(question):
+  queries = plan_queries(question)
+
   all_chunks = []
 
-  qvec = create_embedding(question)
-  chunks = fetch_relevant_chunks(qvec)
-  all_chunks.extend(chunks)
+  for q in queries:
+    qvec = create_embedding(q)
+    chunks = fetch_relevant_chunks(qvec)
+    all_chunks.extend(chunks)
 
   unique_chunks = {c.id: c for c in all_chunks}
   chunks = list(unique_chunks.values())
 
+  qvec = create_embedding(question)
   chunks = mmr(qvec, chunks, k=4)
   return chunks
 
@@ -139,18 +165,3 @@ def build_sources(chunks, cited_ids):
       "label": by_id[cid].filename,
       "url": f"https://drive.google.com/file/d/{by_id[cid].drive_file_id}/view"
   } for cid in cited_ids if cid in by_id]
-
-
-def answer_rag(question):
-  context, chunks = create_context(question)
-  prompt = create_prompt(context, question)
-  answer = create_response(prompt)
-  answer = normalize_citations(answer)
-  cited_ids = extract_cited_ids(answer)
-  sources = build_sources(chunks, cited_ids)
-
-  return {
-      "answer": answer,
-      "sources": sources,
-      "citations": cited_ids,
-  }

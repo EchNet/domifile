@@ -95,10 +95,11 @@ class AppBuilder:
 
 
 def create_app():
-  return AppBuilder() \
+  app = AppBuilder() \
     .configure_logging() \
     .configure_server() \
     .install_db() \
     .install_blueprint() \
     .install_cli() \
     .app
+  return app
