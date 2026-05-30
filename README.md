@@ -1,14 +1,14 @@
-# Domifile
+# Naiborli
 
-Domifile is an AI-powered **organizational memory system for Homeowners Associations (HOAs)**.
+Naiborli is an AI-powered **organizational memory system for Homeowners Associations (HOAs)**.
 
-It connects to an HOA's Google Drive document archive and allows board members to ask natural-language questions about their documents. Domifile analyzes the documents, retrieves relevant information, and produces answers with citations to the source files.
+It connects to an HOA's Google Drive document archive and allows board members to ask natural-language questions about their documents. Naiborli analyzes the documents, retrieves relevant information, and produces answers with citations to the source files.
 
 The long-term vision is an **operational knowledge layer for HOA governance**: contracts, vendors, maintenance history, governing documents, and institutional memory.
 
 ---
 
-# Why Domifile Exists
+# Why Naiborli Exists
 
 Volunteer HOA boards face recurring problems:
 
@@ -17,7 +17,7 @@ Volunteer HOA boards face recurring problems:
 * Contracts, vendor relationships, and maintenance history become unclear.
 * Governing documents are difficult to search during meetings.
 
-Domifile addresses this by turning an HOA’s document archive into a **searchable knowledge base**.
+Naiborli addresses this by turning an HOA’s document archive into a **searchable knowledge base**.
 
 Example question:
 
@@ -55,7 +55,7 @@ No structured entity extraction or workflow automation yet.
 
 # Architecture Overview
 
-Domifile uses a simple Retrieval-Augmented Generation (RAG) architecture.
+Naiborli uses a simple Retrieval-Augmented Generation (RAG) architecture.
 
 Components:
 
@@ -111,22 +111,9 @@ LLM Providers
 
 ---
 
-# Repository Structure
-
-Suggested structure:
-
-domifile/
-drive/      # Google Drive integration
-ingest/     # document extraction + chunking
-rag/        # embeddings, retrieval, query planner
-api/        # HTTP endpoints
-ui/         # minimal chat interface
-
----
-
 # Example Questions
 
-Domifile should be able to answer questions such as:
+Naiborli should be able to answer questions such as:
 
 * Who handles landscaping?
 * When was the irrigation system replaced?
@@ -147,13 +134,13 @@ Later milestones will add:
 * Governing document interpretation
 * Workflow automation for board operations
 
-Ultimately Domifile becomes the **institutional memory system for HOAs**.
+Ultimately Naiborli becomes the **institutional memory system for HOAs**.
 
 ---
 
 # Status
 
-Domifile is currently in early development.
+Naiborli is currently in early development.
 
 Milestone 1 goal: demonstrate that AI can reliably answer HOA questions using the organization's existing document archive.
 

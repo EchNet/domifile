@@ -1,5 +1,5 @@
 # domifile/ingest/helpers.py
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, insert
 import logging
 from datetime import datetime
 
@@ -73,15 +73,26 @@ class DocumentHelper:
     self.db_session.execute(delete(Chunk).where(Chunk.document_id == self.document.id))
 
   def create_chunks(self):
+    BATCH_SIZE = 100
 
-    def chunk_text(text, size=300, extra=30):
+    def chunk_text(text, size=3000):
       for i in range(0, len(text), size):
+        logger.debug(f"  → chunk @ {i}")
         yield text[i:i + size]
 
+    buffer = []
+
     for chunk_text_block in chunk_text(self.document.text):
-      chunk = Chunk(
-          document_id=self.document.id,
-          text=chunk_text_block,
-          embedding=create_embedding(chunk_text_block),
-      )
-      self.db_session.add(chunk)
+      buffer.append({
+          "document_id": self.document.id,
+          "text": chunk_text_block,
+          "embedding": create_embedding(chunk_text_block),
+      })
+      if len(buffer) >= BATCH_SIZE:
+        self.db_session.execute(insert(Chunk), buffer)
+        self.db_session.commit()
+        buffer.clear()
+
+    if buffer:
+      self.db_session.execute(insert(Chunk), buffer)
+      self.db_session.commit()

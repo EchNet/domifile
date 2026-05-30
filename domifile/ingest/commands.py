@@ -61,7 +61,6 @@ def install_ingest_commands(app):
 
     output = IngestService().ingest_drive_hierarchy(root_file_id)
     click.echo(json.dumps(output))
-    ingest_service.close()
 
   app.cli.add_command(ingest_drive_command)
 
@@ -88,10 +87,8 @@ def install_ingest_commands(app):
   def clear_ingest_drive(root_file_id):
     """Traverse a Google Drive folder/file hierarchy and clear all ingested content."""
     configure_logging()
-    ingest_service = IngestService(db_session=create_db_session())
     root_file_id = normalize_file_id(root_file_id)
-    count = ingest_service.clear_drive_hierarchy(root_file_id)
+    count = IngestService().clear_drive_hierarchy(root_file_id)
     click.echo(f"Done. Cleared {count}.")
-    ingest_service.close()
 
   app.cli.add_command(clear_ingest_drive)

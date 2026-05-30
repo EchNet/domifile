@@ -64,12 +64,12 @@ class IngestService:
         logger.debug(f"  → already up to date")
         return
 
-      # Load document text.
-      logger.error(f"  → loading")
+      # Extract document text.
+      logger.error("  → extracting")
       try:
         text = TextExtractor(self.drive_service, drive_file).extract_text()
         text = (text or "").strip()
-        logger.debug(f"  → \"{text[0:40]}{'...' if len(text) > 40 else ''}\"")
+        logger.debug(f"  → length = {len(text)}")
       except TextExtractor.Error as e:  # Usually unsupported MIME type
         text = ""
         logger.debug(f"  → {str(e)}")
@@ -80,17 +80,17 @@ class IngestService:
         document_helper.delete_all_chunks()
 
       if text:
-        db_session.flush()  # Make document ID visible to session.
+        db_session.flush()  # generate document ID
+        logger.debug(f"  → chunking")
         document_helper.create_chunks()
-        db_session.flush()  # Make chunks visible to session.
         # Analyze document for type.
         doc_analyzer = DocumentAnalyzer(document)
         analysis = doc_analyzer.analyze_document()
+        logger.debug(f"  → finished analysis")
 
       # Finish.
       document.ingested_at = datetime.utcnow()
       db_session.commit()
-      logger.debug(f"  → done.")
     except Exception as e:
       db_session.rollback()
       raise
