@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 class Prompt(ABC):
 
+  MIME_TYPE = "application/json"
+
   def run(self, **kwargs):
     # Interpolate the prompt string.
     prompt = self.build_prompt(**kwargs)
@@ -24,6 +26,9 @@ class Prompt(ABC):
       raise ValueError("Empty response")
     text = text.strip()
     logger.debug(text)
+
+    if not self.MIME_TYPE.endswith("json"):
+      return text
 
     # Remove ```json ... ``` or ``` ... ```
     match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)

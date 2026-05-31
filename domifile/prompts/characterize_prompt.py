@@ -1,4 +1,4 @@
-# domifile/prompts/characterize.py
+# domifile/prompts/characterize_prompt.py
 
 import re
 
